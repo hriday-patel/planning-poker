@@ -1,0 +1,366 @@
+@import "tailwindcss";
+
+/* =========================
+   THEME TOKENS
+   Inspired by Slack, Linear, GitHub, Notion, and Vercel
+   ========================= */
+@theme {
+  --color-brand-50: #eef4ff;
+  --color-brand-100: #dce8ff;
+  --color-brand-200: #bdd3ff;
+  --color-brand-300: #93b4ff;
+  --color-brand-400: #5f8eff;
+  --color-brand-500: #3b6df6;
+  --color-brand-600: #2d58d9;
+  --color-brand-700: #2547b0;
+  --color-brand-800: #223d8c;
+  --color-brand-900: #22366f;
+
+  --shadow-soft:
+    0 1px 2px rgba(15, 23, 42, 0.08), 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-medium:
+    0 8px 30px rgba(15, 23, 42, 0.18), 0 2px 10px rgba(15, 23, 42, 0.08);
+}
+
+/* =========================
+   BASE THEME VARIABLES
+   ========================= */
+@layer base {
+  :root {
+    color-scheme: dark;
+
+    --primary: #78a6ff;
+    --secondary: #9fb0c7;
+    --accent: #7c93ff;
+
+    --bg-primary: #0f1115;
+    --bg-secondary: #161a22;
+    --bg-tertiary: #1d2330;
+    --bg-elevated: #20283a;
+    --bg-muted: #131824;
+    --bg-overlay: rgba(7, 10, 17, 0.72);
+
+    --surface-primary: #161a22;
+    --surface-secondary: #1b2130;
+    --surface-tertiary: #232b3d;
+    --surface-accent: #1d2847;
+
+    --text-primary: #f5f7fb;
+    --text-secondary: #c1cada;
+    --text-tertiary: #95a3b8;
+    --text-muted: #718096;
+    --text-inverse: #0f172a;
+
+    --border-color: #2a3447;
+    --border-strong: #3a4660;
+    --border-subtle: rgba(148, 163, 184, 0.14);
+
+    --success: #2fbf71;
+    --warning: #f5b942;
+    --danger: #ef6b73;
+    --info: #67a6ff;
+
+    --card-bg: #161a22;
+    --card-hover: #1c2230;
+    --input-bg: #121722;
+    --input-border: #303a4f;
+    --ring-color: rgba(120, 166, 255, 0.35);
+  }
+
+  .light {
+    color-scheme: light;
+
+    --primary: #2f5fe3;
+    --secondary: #5e6b7e;
+    --accent: #4f6cf6;
+
+    --bg-primary: #f7f8fb;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f0f3f8;
+    --bg-elevated: #ffffff;
+    --bg-muted: #eef2f7;
+    --bg-overlay: rgba(148, 163, 184, 0.2);
+
+    --surface-primary: #ffffff;
+    --surface-secondary: #f8fafc;
+    --surface-tertiary: #eef2f7;
+    --surface-accent: #edf3ff;
+
+    --text-primary: #111827;
+    --text-secondary: #475569;
+    --text-tertiary: #64748b;
+    --text-muted: #94a3b8;
+    --text-inverse: #ffffff;
+
+    --border-color: #d8e0ea;
+    --border-strong: #c2ccd8;
+    --border-subtle: rgba(15, 23, 42, 0.08);
+
+    --success: #15803d;
+    --warning: #b7791f;
+    --danger: #dc2626;
+    --info: #2563eb;
+
+    --card-bg: #ffffff;
+    --card-hover: #f8fafc;
+    --input-bg: #ffffff;
+    --input-border: #cbd5e1;
+    --ring-color: rgba(47, 95, 227, 0.2);
+  }
+
+  * {
+    border-color: var(--border-color);
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    min-height: 100%;
+  }
+
+  html {
+    background: var(--bg-primary);
+  }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(
+        circle at top,
+        rgba(120, 166, 255, 0.08),
+        transparent 28%
+      ),
+      var(--bg-primary);
+    color: var(--text-primary);
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease,
+      border-color 0.25s ease;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
+  button,
+  input,
+  select,
+  textarea,
+  a {
+    transition:
+      background-color 0.2s ease,
+      border-color 0.2s ease,
+      color 0.2s ease,
+      box-shadow 0.2s ease,
+      opacity 0.2s ease;
+  }
+
+  input,
+  select,
+  textarea {
+    background: var(--input-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--input-border);
+  }
+
+  input:focus,
+  select:focus,
+  textarea:focus,
+  button:focus-visible,
+  a:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 4px var(--ring-color);
+  }
+
+  ::selection {
+    background: rgba(120, 166, 255, 0.24);
+    color: var(--text-primary);
+  }
+}
+
+/* =========================
+   UTILITIES
+   ========================= */
+@utility text-balance {
+  text-wrap: balance;
+}
+
+@utility bg-theme-card {
+  background-color: var(--card-bg);
+}
+
+@utility bg-theme-surface {
+  background-color: var(--surface-primary);
+}
+
+@utility bg-theme-surface-secondary {
+  background-color: var(--surface-secondary);
+}
+
+@utility border-theme {
+  border-color: var(--border-color);
+}
+
+@utility text-theme-secondary {
+  color: var(--text-secondary);
+}
+
+@utility text-theme-tertiary {
+  color: var(--text-tertiary);
+}
+
+@utility shadow-theme {
+  box-shadow: var(--shadow-soft);
+}
+
+@utility shadow-theme-strong {
+  box-shadow: var(--shadow-medium);
+}
+
+@utility bg-gradient-radial {
+  background-image: radial-gradient(var(--tw-gradient-stops));
+}
+
+@utility bg-gradient-conic {
+  background-image: conic-gradient(
+    from 180deg at 50% 50%,
+    var(--tw-gradient-stops)
+  );
+}
+
+@utility bg-card-pattern {
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2378a6ff' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* =========================
+   ANIMATIONS
+   ========================= */
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  0% {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideDown {
+  0% {
+    transform: translateY(-10px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes flip {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(180deg);
+  }
+}
+
+@utility animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@utility animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@utility animate-slide-down {
+  animation: slideDown 0.3s ease-out;
+}
+
+@utility animate-flip {
+  animation: flip 0.6s ease-in-out;
+}
+
+@utility animate-pulse-slow {
+  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* =========================
+   COMPONENT HELPERS
+   ========================= */
+.card-flip {
+  transform-style: preserve-3d;
+  transition: transform 0.6s;
+}
+
+.card-flip.flipped {
+  transform: rotateY(180deg);
+}
+
+.card-front,
+.card-back {
+  backface-visibility: hidden;
+  position: absolute;
+  inset: 0;
+}
+
+.card-back {
+  transform: rotateY(180deg);
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* =========================
+   SCROLLBAR
+   ========================= */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background-color: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-strong);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--primary);
+}
+
+/* Made with Bob */
