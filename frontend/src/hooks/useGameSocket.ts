@@ -3,6 +3,18 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 
+// Development-only logger utility
+const logger = {
+  log: (...args: any[]) => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("[GameSocket]", ...args);
+    }
+  },
+  error: (...args: any[]) => {
+    console.error("[GameSocket]", ...args);
+  },
+};
+
 // Event types matching backend
 export enum ClientEvents {
   JOIN_GAME = "JOIN_GAME",
@@ -111,6 +123,277 @@ export function useGameSocket(options: UseGameSocketOptions) {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
+  // Store callbacks in ref to avoid recreating registerSocketEvents
+  const callbacksRef = useRef({
+    onError,
+    onPlayerJoined,
+    onPlayerLeft,
+    onVoteSubmitted,
+    onCardsRevealed,
+    onNewRound,
+    onTimerTick,
+    onTimerEnded,
+  });
+
+  // Update callbacks ref on every render
+  useEffect(() => {
+    callbacksRef.current = {
+      onError,
+      onPlayerJoined,
+      onPlayerLeft,
+      onVoteSubmitted,
+      onCardsRevealed,
+      onNewRound,
+      onTimerTick,
+      onTimerEnded,
+    };
+  });
+
+  // State update helper to reduce duplication
+  const updateGameState = useCallback(
+    (
+      updates:
+        | Partial<GameState>
+        | ((prev: GameState | null) => GameState | null),
+    ) => {
+      setGameState((prev) => {
+        if (!prev) return prev;
+        if (typeof updates === "function") {
+          return updates(prev);
+        }
+        return { ...prev, ...updates };
+      });
+    },
+    [],
+  );
+
+  // Register all socket event handlers
+  const registerSocketEvents = useCallback(
+    (socket: Socket) => {
+      // Connection events
+      socket.on("connect", () => {
+        logger.log("WebSocket connected:", socket.id);
+        setIsConnected(true);
+        setIsReconnecting(false);
+        socket.emit(ClientEvents.JOIN_GAME, { game_id: gameId });
+      });
+
+      socket.on("disconnect", (reason) => {
+        logger.log("WebSocket disconnected:", reason);
+        setIsConnected(false);
+      });
+
+      socket.on("reconnect_attempt", () => {
+        logger.log("Attempting to reconnect...");
+        setIsReconnecting(true);
+      });
+
+      socket.on("reconnect", () => {
+        logger.log("Reconnected successfully");
+        setIsReconnecting(false);
+        socket.emit(ClientEvents.JOIN_GAME, { game_id: gameId });
+      });
+
+      socket.on("reconnect_failed", () => {
+        logger.error("Reconnection failed");
+        setIsReconnecting(false);
+        callbacksRef.current.onError?.("Failed to reconnect to game");
+      });
+
+      // Game state sync
+      socket.on(ServerEvents.GAME_STATE_SYNC, (state: GameState) => {
+        logger.log("Game state synced:", state);
+        setGameState(state);
+      });
+
+      // Player events
+      socket.on(
+        ServerEvents.PLAYER_JOINED,
+        ({ user }: { user: PlayerInfo }) => {
+          logger.log("Player joined:", user.display_name);
+          updateGameState((prev) => {
+            if (!prev) return prev;
+            return { ...prev, players: [...prev.players, user] };
+          });
+          callbacksRef.current.onPlayerJoined?.(user);
+        },
+      );
+
+      socket.on(
+        ServerEvents.PLAYER_LEFT,
+        ({ user_id }: { user_id: string }) => {
+          logger.log("Player left:", user_id);
+          updateGameState((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              players: prev.players.filter((p) => p.user_id !== user_id),
+            };
+          });
+          callbacksRef.current.onPlayerLeft?.(user_id);
+        },
+      );
+
+      socket.on(
+        ServerEvents.PLAYER_UPDATED,
+        (data: {
+          user_id: string;
+          display_name: string;
+          avatar_url: string | null;
+        }) => {
+          logger.log("Player updated:", data);
+          updateGameState((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              players: prev.players.map((p) =>
+                p.user_id === data.user_id
+                  ? {
+                      ...p,
+                      display_name: data.display_name,
+                      avatar_url: data.avatar_url,
+                    }
+                  : p,
+              ),
+            };
+          });
+        },
+      );
+
+      // Voting events
+      socket.on(
+        ServerEvents.VOTE_SUBMITTED,
+        ({ user_id }: { user_id: string }) => {
+          logger.log("Vote submitted by:", user_id);
+          updateGameState((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              players: prev.players.map((p) =>
+                p.user_id === user_id ? { ...p, has_voted: true } : p,
+              ),
+            };
+          });
+          callbacksRef.current.onVoteSubmitted?.(user_id);
+        },
+      );
+
+      socket.on(ServerEvents.CARDS_REVEALED, (results: VotingResults) => {
+        logger.log("Cards revealed:", results);
+        updateGameState((prev) => {
+          if (!prev || !prev.current_round) return prev;
+          return {
+            ...prev,
+            current_round: { ...prev.current_round, is_revealed: true },
+            players: prev.players.map((p) => ({ ...p, has_voted: false })),
+          };
+        });
+        callbacksRef.current.onCardsRevealed?.(results);
+      });
+
+      socket.on(
+        ServerEvents.NEW_ROUND_STARTED,
+        ({
+          round_id,
+          issue_id,
+        }: {
+          round_id: string;
+          issue_id: string | null;
+        }) => {
+          logger.log("New round started:", round_id);
+          updateGameState((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              current_round: {
+                id: round_id,
+                issue_id,
+                votes: {},
+                is_revealed: false,
+              },
+              players: prev.players.map((p) => ({ ...p, has_voted: false })),
+            };
+          });
+          callbacksRef.current.onNewRound?.(round_id, issue_id);
+        },
+      );
+
+      // Game settings
+      socket.on(
+        ServerEvents.GAME_SETTINGS_UPDATED,
+        ({ settings }: { settings: any }) => {
+          logger.log("Game settings updated:", settings);
+          updateGameState((prev) => {
+            if (!prev) return prev;
+            return { ...prev, game: { ...prev.game, ...settings } };
+          });
+        },
+      );
+
+      // Timer events
+      socket.on(
+        ServerEvents.TIMER_TICK,
+        ({ remaining_seconds }: { remaining_seconds: number }) => {
+          updateGameState((prev) => {
+            if (!prev || !prev.timer) return prev;
+            return {
+              ...prev,
+              timer: { ...prev.timer, remaining_seconds },
+            };
+          });
+          callbacksRef.current.onTimerTick?.(remaining_seconds);
+        },
+      );
+
+      socket.on(ServerEvents.TIMER_ENDED, () => {
+        logger.log("Timer ended");
+        updateGameState({ timer: null });
+        callbacksRef.current.onTimerEnded?.();
+      });
+
+      // Issue events
+      socket.on(ServerEvents.ISSUE_ADDED, ({ issue }: { issue: any }) => {
+        logger.log("Issue added:", issue);
+        // Parent component should refetch issues list
+      });
+
+      socket.on(ServerEvents.ISSUE_UPDATED, ({ issue }: { issue: any }) => {
+        logger.log("Issue updated:", issue);
+        // Parent component should refetch issues list
+      });
+
+      socket.on(
+        ServerEvents.ISSUE_DELETED,
+        ({ issue_id }: { issue_id: string }) => {
+          logger.log("Issue deleted:", issue_id);
+          // Parent component should refetch issues list
+        },
+      );
+
+      // Facilitator change
+      socket.on(
+        ServerEvents.FACILITATOR_CHANGED,
+        ({ new_facilitator_id }: { new_facilitator_id: string }) => {
+          logger.log("Facilitator changed to:", new_facilitator_id);
+          updateGameState((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              game: { ...prev.game, facilitator_id: new_facilitator_id },
+            };
+          });
+        },
+      );
+
+      // Error handling
+      socket.on(ServerEvents.ERROR, ({ message }: { message: string }) => {
+        logger.error("WebSocket error:", message);
+        callbacksRef.current.onError?.(message);
+      });
+    },
+    [gameId, updateGameState],
+  );
+
   // Initialize socket connection
   useEffect(() => {
     if (!gameId || !isAuthenticated) return;
@@ -129,247 +412,8 @@ export function useGameSocket(options: UseGameSocketOptions) {
     socketRef.current = newSocket;
     setSocket(newSocket);
 
-    // Connection events
-    newSocket.on("connect", () => {
-      console.log("WebSocket connected:", newSocket.id);
-      setIsConnected(true);
-      setIsReconnecting(false);
-
-      // Join game room
-      newSocket.emit(ClientEvents.JOIN_GAME, { game_id: gameId });
-    });
-
-    newSocket.on("disconnect", (reason) => {
-      console.log("WebSocket disconnected:", reason);
-      setIsConnected(false);
-    });
-
-    newSocket.on("reconnect_attempt", () => {
-      console.log("Attempting to reconnect...");
-      setIsReconnecting(true);
-    });
-
-    newSocket.on("reconnect", () => {
-      console.log("Reconnected successfully");
-      setIsReconnecting(false);
-      // Rejoin game room
-      newSocket.emit(ClientEvents.JOIN_GAME, { game_id: gameId });
-    });
-
-    newSocket.on("reconnect_failed", () => {
-      console.error("Reconnection failed");
-      setIsReconnecting(false);
-      onError?.("Failed to reconnect to game");
-    });
-
-    // Game state sync (on join/reconnect)
-    newSocket.on(ServerEvents.GAME_STATE_SYNC, (state: GameState) => {
-      console.log("Game state synced:", state);
-      setGameState(state);
-    });
-
-    // Player events
-    newSocket.on(
-      ServerEvents.PLAYER_JOINED,
-      ({ user }: { user: PlayerInfo }) => {
-        console.log("Player joined:", user.display_name);
-        setGameState((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            players: [...prev.players, user],
-          };
-        });
-        onPlayerJoined?.(user);
-      },
-    );
-
-    newSocket.on(
-      ServerEvents.PLAYER_LEFT,
-      ({ user_id }: { user_id: string }) => {
-        console.log("Player left:", user_id);
-        setGameState((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            players: prev.players.filter((p) => p.user_id !== user_id),
-          };
-        });
-        onPlayerLeft?.(user_id);
-      },
-    );
-
-    newSocket.on(
-      ServerEvents.PLAYER_UPDATED,
-      (data: {
-        user_id: string;
-        display_name: string;
-        avatar_url: string | null;
-      }) => {
-        console.log("Player updated:", data);
-        setGameState((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            players: prev.players.map((p) =>
-              p.user_id === data.user_id
-                ? {
-                    ...p,
-                    display_name: data.display_name,
-                    avatar_url: data.avatar_url,
-                  }
-                : p,
-            ),
-          };
-        });
-      },
-    );
-
-    // Voting events
-    newSocket.on(
-      ServerEvents.VOTE_SUBMITTED,
-      ({ user_id }: { user_id: string }) => {
-        console.log("Vote submitted by:", user_id);
-        setGameState((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            players: prev.players.map((p) =>
-              p.user_id === user_id ? { ...p, has_voted: true } : p,
-            ),
-          };
-        });
-        onVoteSubmitted?.(user_id);
-      },
-    );
-
-    newSocket.on(ServerEvents.CARDS_REVEALED, (results: VotingResults) => {
-      console.log("Cards revealed:", results);
-      setGameState((prev) => {
-        if (!prev || !prev.current_round) return prev;
-        return {
-          ...prev,
-          current_round: {
-            ...prev.current_round,
-            is_revealed: true,
-          },
-          players: prev.players.map((p) => ({ ...p, has_voted: false })),
-        };
-      });
-      onCardsRevealed?.(results);
-    });
-
-    newSocket.on(
-      ServerEvents.NEW_ROUND_STARTED,
-      ({
-        round_id,
-        issue_id,
-      }: {
-        round_id: string;
-        issue_id: string | null;
-      }) => {
-        console.log("New round started:", round_id);
-        setGameState((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            current_round: {
-              id: round_id,
-              issue_id,
-              votes: {},
-              is_revealed: false,
-            },
-            players: prev.players.map((p) => ({ ...p, has_voted: false })),
-          };
-        });
-        onNewRound?.(round_id, issue_id);
-      },
-    );
-
-    // Game settings
-    newSocket.on(
-      ServerEvents.GAME_SETTINGS_UPDATED,
-      ({ settings }: { settings: any }) => {
-        console.log("Game settings updated:", settings);
-        setGameState((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            game: { ...prev.game, ...settings },
-          };
-        });
-      },
-    );
-
-    // Timer events
-    newSocket.on(
-      ServerEvents.TIMER_TICK,
-      ({ remaining_seconds }: { remaining_seconds: number }) => {
-        setGameState((prev) => {
-          if (!prev || !prev.timer) return prev;
-          return {
-            ...prev,
-            timer: {
-              ...prev.timer,
-              remaining_seconds,
-            },
-          };
-        });
-        onTimerTick?.(remaining_seconds);
-      },
-    );
-
-    newSocket.on(ServerEvents.TIMER_ENDED, () => {
-      console.log("Timer ended");
-      setGameState((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          timer: null,
-        };
-      });
-      onTimerEnded?.();
-    });
-
-    // Issue events
-    newSocket.on(ServerEvents.ISSUE_ADDED, ({ issue }: { issue: any }) => {
-      console.log("Issue added:", issue);
-      // Parent component should refetch issues list
-    });
-
-    newSocket.on(ServerEvents.ISSUE_UPDATED, ({ issue }: { issue: any }) => {
-      console.log("Issue updated:", issue);
-      // Parent component should refetch issues list
-    });
-
-    newSocket.on(
-      ServerEvents.ISSUE_DELETED,
-      ({ issue_id }: { issue_id: string }) => {
-        console.log("Issue deleted:", issue_id);
-        // Parent component should refetch issues list
-      },
-    );
-
-    // Facilitator change
-    newSocket.on(
-      ServerEvents.FACILITATOR_CHANGED,
-      ({ new_facilitator_id }: { new_facilitator_id: string }) => {
-        console.log("Facilitator changed to:", new_facilitator_id);
-        setGameState((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            game: { ...prev.game, facilitator_id: new_facilitator_id },
-          };
-        });
-      },
-    );
-
-    // Error handling
-    newSocket.on(ServerEvents.ERROR, ({ message }: { message: string }) => {
-      console.error("WebSocket error:", message);
-      onError?.(message);
-    });
+    // Register all event handlers
+    registerSocketEvents(newSocket);
 
     // Cleanup on unmount
     return () => {
@@ -378,18 +422,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
         newSocket.close();
       }
     };
-  }, [
-    gameId,
-    isAuthenticated,
-    onError,
-    onPlayerJoined,
-    onPlayerLeft,
-    onVoteSubmitted,
-    onCardsRevealed,
-    onNewRound,
-    onTimerTick,
-    onTimerEnded,
-  ]);
+  }, [gameId, isAuthenticated, registerSocketEvents]);
 
   // Action methods
   const submitVote = useCallback(

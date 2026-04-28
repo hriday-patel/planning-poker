@@ -21,6 +21,9 @@ const INVITE_TOKEN_TTL_SECONDS = parseInt(
   10,
 );
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+const INVITE_TOKEN_NAMESPACE = "invite";
+const SESSION_NAMESPACE = "session";
+const OAUTH_STATE_NAMESPACE = "oauth:state";
 
 const isSafeReturnPath = (value: string): boolean => {
   if (!value.startsWith("/")) {
@@ -138,7 +141,7 @@ export const storeSession = async (
   refreshToken: string,
 ): Promise<void> => {
   try {
-    const sessionKey = `session:${userId}`;
+    const sessionKey = `${SESSION_NAMESPACE}:${userId}`;
     const sessionData = {
       userId,
       refreshToken,
@@ -169,7 +172,7 @@ export const getSession = async (
   createdAt: string;
 } | null> => {
   try {
-    const sessionKey = `session:${userId}`;
+    const sessionKey = `${SESSION_NAMESPACE}:${userId}`;
     const sessionData = await redisClient.get(sessionKey);
 
     if (!sessionData) {
@@ -192,7 +195,7 @@ export const getSession = async (
  */
 export const deleteSession = async (userId: string): Promise<void> => {
   try {
-    const sessionKey = `session:${userId}`;
+    const sessionKey = `${SESSION_NAMESPACE}:${userId}`;
     await redisClient.del(sessionKey);
     logger.info(`Session deleted for user: ${userId}`);
   } catch (error) {
@@ -209,7 +212,7 @@ export const storeOAuthState = async (
   returnTo?: string,
 ): Promise<void> => {
   try {
-    const stateKey = `oauth:state:${state}`;
+    const stateKey = `${OAUTH_STATE_NAMESPACE}:${state}`;
     const stateData = {
       state,
       returnTo: sanitizeReturnTo(returnTo),
@@ -232,7 +235,7 @@ export const verifyOAuthState = async (
   state: string,
 ): Promise<{ returnTo: string } | null> => {
   try {
-    const stateKey = `oauth:state:${state}`;
+    const stateKey = `${OAUTH_STATE_NAMESPACE}:${state}`;
     const stateData = await redisClient.get(stateKey);
 
     if (!stateData) {
@@ -247,20 +250,6 @@ export const verifyOAuthState = async (
   } catch (error) {
     logger.error("Error verifying OAuth state:", error);
     return null;
-  }
-};
-
-/**
- * Revoke all sessions for a user (logout from all devices)
- */
-export const revokeAllSessions = async (userId: string): Promise<void> => {
-  try {
-    const sessionKey = `session:${userId}`;
-    await redisClient.del(sessionKey);
-    logger.info(`All sessions revoked for user: ${userId}`);
-  } catch (error) {
-    logger.error("Error revoking sessions:", error);
-    throw error;
   }
 };
 
@@ -309,7 +298,7 @@ export const createInviteLink = async (
   };
 
   await redisClient.setEx(
-    `invite:${token}`,
+    `${INVITE_TOKEN_NAMESPACE}:${token}`,
     INVITE_TOKEN_TTL_SECONDS,
     JSON.stringify(record),
   );
@@ -328,7 +317,8 @@ export const validateInviteToken = async (
   token: string,
 ): Promise<InviteTokenPayload | null> => {
   try {
-    const raw = await redisClient.get(`invite:${token}`);
+    const tokenKey = `${INVITE_TOKEN_NAMESPACE}:${token}`;
+    const raw = await redisClient.get(tokenKey);
     if (!raw) {
       return null;
     }
@@ -336,11 +326,25 @@ export const validateInviteToken = async (
     const record = JSON.parse(raw) as InviteTokenRecord;
 
     if (record.usedAt || record.usedBy) {
+      await redisClient.del(tokenKey);
       return null;
     }
 
     if (new Date(record.expiresAt).getTime() <= Date.now()) {
-      await redisClient.del(`invite:${token}`);
+      await redisClient.del(tokenKey);
+      return null;
+    }
+
+    const gameResult = await db.query(
+      "SELECT id, status FROM games WHERE id = $1",
+      [record.gameId],
+    );
+
+    if (
+      gameResult.rows.length === 0 ||
+      gameResult.rows[0].status === "archived"
+    ) {
+      await redisClient.del(tokenKey);
       return null;
     }
 
@@ -361,10 +365,11 @@ export const validateInviteToken = async (
  */
 export const consumeInviteToken = async (
   token: string,
-  usedBy: string,
+  _usedBy: string,
 ): Promise<InviteTokenPayload | null> => {
   try {
-    const raw = await redisClient.get(`invite:${token}`);
+    const tokenKey = `${INVITE_TOKEN_NAMESPACE}:${token}`;
+    const raw = await redisClient.getDel(tokenKey);
     if (!raw) {
       return null;
     }
@@ -376,30 +381,20 @@ export const consumeInviteToken = async (
     }
 
     if (new Date(record.expiresAt).getTime() <= Date.now()) {
-      await redisClient.del(`invite:${token}`);
       return null;
     }
 
-    if (record.invitedBy === usedBy) {
-      return {
-        tokenId: record.tokenId,
-        gameId: record.gameId,
-        invitedBy: record.invitedBy,
-        expiresAt: record.expiresAt,
-      };
-    }
-
-    record.usedBy = usedBy;
-    record.usedAt = new Date().toISOString();
-
-    await redisClient.setEx(
-      `invite:${token}`,
-      Math.max(
-        1,
-        Math.floor((new Date(record.expiresAt).getTime() - Date.now()) / 1000),
-      ),
-      JSON.stringify(record),
+    const gameResult = await db.query(
+      "SELECT id, status FROM games WHERE id = $1",
+      [record.gameId],
     );
+
+    if (
+      gameResult.rows.length === 0 ||
+      gameResult.rows[0].status === "archived"
+    ) {
+      return null;
+    }
 
     return {
       tokenId: record.tokenId,

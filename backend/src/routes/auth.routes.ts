@@ -5,6 +5,7 @@ import { AuthenticatedRequest } from "../types/auth.types";
 import { authenticate } from "../middleware/auth";
 import {
   authRateLimiter,
+  gameCreationRateLimiter,
   strictAuthRateLimiter,
 } from "../middleware/rateLimiter";
 import {
@@ -245,19 +246,12 @@ router.get(
 router.post(
   "/invite-links/:gameId",
   authenticate as any,
+  gameCreationRateLimiter,
   async (req: Request, res: Response): Promise<void> => {
     const authReq = req as AuthenticatedRequest;
 
     try {
-      if (!authReq.userId) {
-        res.status(401).json({
-          success: false,
-          error: "Not authenticated",
-        });
-        return;
-      }
-
-      const invite = await createInviteLink(req.params.gameId, authReq.userId);
+      const invite = await createInviteLink(req.params.gameId, authReq.userId!);
 
       res.status(201).json({
         success: true,

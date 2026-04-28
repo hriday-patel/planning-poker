@@ -29,28 +29,6 @@ export const findUserById = async (
 };
 
 /**
- * Create a new user record
- */
-export const createUser = async (
-  userId: string,
-  displayName: string,
-): Promise<UserRecord> => {
-  try {
-    const result = await db.query(
-      `INSERT INTO users (id, display_name, avatar_url, spectator_mode, theme_preference)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [userId, displayName, "/images/avatar-placeholder.png", false, "dark"],
-    );
-
-    return result.rows[0] as UserRecord;
-  } catch (error) {
-    logger.error("Error creating user:", error);
-    throw error;
-  }
-};
-
-/**
  * Update an existing user record
  */
 export const updateUser = async (
@@ -138,20 +116,6 @@ export const toUserSession = (user: UserRecord): UserSession => {
     themePreference: user.theme_preference,
     createdAt: user.created_at,
   };
-};
-
-/**
- * Delete a user (for testing purposes)
- */
-export const deleteUser = async (userId: string): Promise<boolean> => {
-  try {
-    const result = await db.query("DELETE FROM users WHERE id = $1", [userId]);
-
-    return result.rowCount !== null && result.rowCount > 0;
-  } catch (error) {
-    logger.error("Error deleting user:", error);
-    throw error;
-  }
 };
 
 // Made with Bob

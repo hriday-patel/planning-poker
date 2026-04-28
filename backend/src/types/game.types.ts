@@ -30,7 +30,7 @@ export interface CreateDeckPayload {
  */
 export enum GamePermission {
   ALL_PLAYERS = "all_players",
-  ONLY_FACILITATOR = "only_facilitator",
+  FACILITATOR_ONLY = "facilitator_only",
 }
 
 /**
@@ -49,7 +49,7 @@ export interface GameRecord {
   name: string;
   creator_id: string;
   facilitator_id: string;
-  voting_system: string; // Deck ID
+  deck_id: string; // Deck ID
   who_can_reveal: GamePermission;
   who_can_manage_issues: GamePermission;
   auto_reveal: boolean;
@@ -66,7 +66,7 @@ export interface GameRecord {
  */
 export interface CreateGamePayload {
   name: string;
-  voting_system: string; // Deck ID
+  deck_id: string; // Deck ID
   who_can_reveal?: GamePermission;
   who_can_manage_issues?: GamePermission;
   auto_reveal?: boolean;
@@ -107,6 +107,7 @@ export interface GameParticipant {
   user_id: string;
   joined_at: Date;
   is_active: boolean; // Online status
+  last_seen_at: Date;
 }
 
 /**
@@ -187,6 +188,7 @@ export interface IssueRecord {
   final_estimate: string | null;
   created_by: string;
   created_at: Date;
+  updated_at: Date;
   display_order: number;
 }
 
@@ -212,6 +214,33 @@ export interface UpdateIssuePayload {
  */
 export interface ImportIssuesPayload {
   issues: string[]; // Array of issue titles
+}
+
+export interface VotingRoundRecord {
+  id: string; // UUID
+  game_id: string;
+  issue_id: string | null;
+  started_at: Date;
+  revealed_at: Date | null;
+  is_active: boolean;
+}
+
+export interface VoteRecord {
+  id: string; // UUID
+  round_id: string;
+  user_id: string;
+  card_value: string;
+  submitted_at: Date;
+}
+
+export interface TimerStateRecord {
+  game_id: string;
+  duration_seconds: number;
+  remaining_seconds: number;
+  is_running: boolean;
+  time_issues: boolean;
+  started_at: Date | null;
+  updated_at: Date;
 }
 
 /**

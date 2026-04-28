@@ -2,6 +2,11 @@ import { Response, NextFunction } from "express";
 import { AuthenticatedRequest } from "../types/auth.types";
 import { verifyAccessToken } from "../services/tokenService";
 import { findUserById, toUserSession } from "../services/userService";
+import {
+  findGuestUserById,
+  toGuestUserSession,
+  isGuestUser,
+} from "../services/guestService";
 import { logger } from "../utils/logger";
 
 /**
@@ -45,8 +50,20 @@ export const authenticate = async (
       return;
     }
 
-    // Fetch user from database
-    const user = await findUserById(payload.userId);
+    // Fetch user from database (check if guest or regular user)
+    let user;
+    if (isGuestUser(payload.userId)) {
+      user = await findGuestUserById(payload.userId);
+      if (user) {
+        req.user = toGuestUserSession(user);
+      }
+    } else {
+      user = await findUserById(payload.userId);
+      if (user) {
+        req.user = toUserSession(user);
+      }
+    }
+
     if (!user) {
       res.status(401).json({
         success: false,
@@ -55,8 +72,6 @@ export const authenticate = async (
       return;
     }
 
-    // Attach user session to request
-    req.user = toUserSession(user);
     req.userId = user.id;
 
     next();
@@ -99,10 +114,19 @@ export const optionalAuthenticate = async (
     // Try to verify and attach user
     const payload = verifyAccessToken(token);
     if (payload) {
-      const user = await findUserById(payload.userId);
-      if (user) {
-        req.user = toUserSession(user);
-        req.userId = user.id;
+      let user;
+      if (isGuestUser(payload.userId)) {
+        user = await findGuestUserById(payload.userId);
+        if (user) {
+          req.user = toGuestUserSession(user);
+          req.userId = user.id;
+        }
+      } else {
+        user = await findUserById(payload.userId);
+        if (user) {
+          req.user = toUserSession(user);
+          req.userId = user.id;
+        }
       }
     }
 

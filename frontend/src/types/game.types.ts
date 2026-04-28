@@ -15,7 +15,7 @@ export interface Deck {
 
 export enum GamePermission {
   ALL_PLAYERS = "all_players",
-  ONLY_FACILITATOR = "only_facilitator",
+  FACILITATOR_ONLY = "facilitator_only",
 }
 
 export enum GameStatus {
@@ -28,7 +28,7 @@ export interface Game {
   name: string;
   creator_id: string;
   facilitator_id: string;
-  voting_system: string;
+  deck_id: string;
   who_can_reveal: GamePermission;
   who_can_manage_issues: GamePermission;
   auto_reveal: boolean;

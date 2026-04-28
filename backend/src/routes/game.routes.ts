@@ -45,6 +45,7 @@ router.post(
       const {
         name,
         voting_system,
+        deck_id,
         who_can_reveal,
         who_can_manage_issues,
         auto_reveal,
@@ -63,7 +64,7 @@ router.post(
 
       const game = await createGame(authReq.userId, {
         name,
-        voting_system,
+        deck_id: deck_id ?? voting_system,
         who_can_reveal,
         who_can_manage_issues,
         auto_reveal,
@@ -93,6 +94,44 @@ router.post(
       res.status(500).json({
         success: false,
         error: "Failed to create game",
+      });
+      return;
+    }
+  },
+);
+
+/**
+ * GET /api/v1/games/my
+ * Get all games the user has participated in
+ * Note: This route must be defined before /:gameId to avoid conflicts
+ */
+router.get(
+  "/my/list",
+  authenticate as any,
+  async (req: Request, res: Response): Promise<void> => {
+    const authReq = req as AuthenticatedRequest;
+
+    try {
+      if (!authReq.userId) {
+        res.status(401).json({
+          success: false,
+          error: "Not authenticated",
+        });
+        return;
+      }
+
+      const games = await getUserGames(authReq.userId);
+
+      res.json({
+        success: true,
+        games,
+      });
+      return;
+    } catch (error) {
+      logger.error("Error fetching user games:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch games",
       });
       return;
     }
@@ -248,44 +287,6 @@ router.patch(
       res.status(500).json({
         success: false,
         error: "Failed to update game",
-      });
-      return;
-    }
-  },
-);
-
-/**
- * GET /api/v1/games/my
- * Get all games the user has participated in
- * Note: This route must be defined before /:gameId to avoid conflicts
- */
-router.get(
-  "/my/list",
-  authenticate as any,
-  async (req: Request, res: Response): Promise<void> => {
-    const authReq = req as AuthenticatedRequest;
-
-    try {
-      if (!authReq.userId) {
-        res.status(401).json({
-          success: false,
-          error: "Not authenticated",
-        });
-        return;
-      }
-
-      const games = await getUserGames(authReq.userId);
-
-      res.json({
-        success: true,
-        games,
-      });
-      return;
-    } catch (error) {
-      logger.error("Error fetching user games:", error);
-      res.status(500).json({
-        success: false,
-        error: "Failed to fetch games",
       });
       return;
     }

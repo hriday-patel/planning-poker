@@ -38,7 +38,7 @@ export const createGame = async (
     }
 
     // Validate voting system (deck)
-    let deckId = payload.voting_system;
+    let deckId = payload.deck_id;
 
     if (!deckId) {
       // Use default deck if not specified
@@ -66,41 +66,54 @@ export const createGame = async (
     const showAverage = payload.show_average ?? true;
     const showCountdown = payload.show_countdown ?? true;
 
-    // Create game
-    const result = await db.query(
-      `INSERT INTO games (
-        name, creator_id, facilitator_id, voting_system,
-        who_can_reveal, who_can_manage_issues, auto_reveal,
-        fun_features_enabled, show_average, show_countdown, status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-      RETURNING *`,
-      [
-        payload.name.trim(),
-        userId,
-        userId, // Creator is initially the facilitator
-        deckId,
-        whoCanReveal,
-        whoCanManageIssues,
-        autoReveal,
-        funFeaturesEnabled,
-        showAverage,
-        showCountdown,
-        GameStatus.ACTIVE,
-      ],
-    );
+    const client = await db.connect();
 
-    const game = result.rows[0] as GameRecord;
+    try {
+      await client.query("BEGIN");
 
-    // Add creator as first participant
-    await db.query(
-      `INSERT INTO game_participants (game_id, user_id, is_active)
-       VALUES ($1, $2, $3)`,
-      [game.id, userId, true],
-    );
+      // Create game
+      const result = await client.query(
+        `INSERT INTO games (
+          name, creator_id, facilitator_id, deck_id,
+          who_can_reveal, who_can_manage_issues, auto_reveal,
+          fun_features_enabled, show_average, show_countdown, status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING *`,
+        [
+          payload.name.trim(),
+          userId,
+          userId, // Creator is initially the facilitator
+          deckId,
+          whoCanReveal,
+          whoCanManageIssues,
+          autoReveal,
+          funFeaturesEnabled,
+          showAverage,
+          showCountdown,
+          GameStatus.ACTIVE,
+        ],
+      );
 
-    logger.info(`Game created: ${game.id} by user ${userId}`);
-    return game;
+      const game = result.rows[0] as GameRecord;
+
+      // Add creator as first participant
+      await client.query(
+        `INSERT INTO game_participants (game_id, user_id, is_active)
+         VALUES ($1, $2, $3)`,
+        [game.id, userId, true],
+      );
+
+      await client.query("COMMIT");
+
+      logger.info(`Game created: ${game.id} by user ${userId}`);
+      return game;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     logger.error("Error creating game:", error);
     throw error;
@@ -145,7 +158,7 @@ export const getGameDetails = async (
         creator.display_name as creator_name,
         facilitator.display_name as facilitator_name
       FROM games g
-      JOIN decks d ON g.voting_system = d.id
+      JOIN decks d ON g.deck_id = d.id
       JOIN users creator ON g.creator_id = creator.id
       JOIN users facilitator ON g.facilitator_id = facilitator.id
       WHERE g.id = $1`,
@@ -164,7 +177,7 @@ export const getGameDetails = async (
       name: row.name,
       creator_id: row.creator_id,
       facilitator_id: row.facilitator_id,
-      voting_system: row.voting_system,
+      deck_id: row.deck_id,
       who_can_reveal: row.who_can_reveal,
       who_can_manage_issues: row.who_can_manage_issues,
       auto_reveal: row.auto_reveal,
@@ -353,23 +366,13 @@ export const addGameParticipant = async (
 ): Promise<void> => {
   try {
     // Check if already a participant
-    const exists = await isGameParticipant(gameId, userId);
-    if (exists) {
-      // Update is_active to true
-      await db.query(
-        `UPDATE game_participants 
-         SET is_active = true 
-         WHERE game_id = $1 AND user_id = $2`,
-        [gameId, userId],
-      );
-    } else {
-      // Add as new participant
-      await db.query(
-        `INSERT INTO game_participants (game_id, user_id, is_active)
-         VALUES ($1, $2, $3)`,
-        [gameId, userId, true],
-      );
-    }
+    await db.query(
+      `INSERT INTO game_participants (game_id, user_id, is_active, last_seen_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (game_id, user_id)
+       DO UPDATE SET is_active = EXCLUDED.is_active, last_seen_at = NOW()`,
+      [gameId, userId, true],
+    );
 
     logger.info(`User ${userId} joined game ${gameId}`);
   } catch (error) {

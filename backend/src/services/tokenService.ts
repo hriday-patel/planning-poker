@@ -3,13 +3,16 @@ import { JWTPayload, TokenPair } from "../types/auth.types";
 import { getSession } from "./authService";
 import { logger } from "../utils/logger";
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || "your_jwt_secret_key_change_in_production";
-const JWT_REFRESH_SECRET =
-  process.env.JWT_REFRESH_SECRET ||
-  "your_jwt_refresh_secret_key_change_in_production";
+const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "24h";
 const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || "7d";
+
+if (!JWT_SECRET || !JWT_REFRESH_SECRET) {
+  throw new Error(
+    "JWT_SECRET and JWT_REFRESH_SECRET must be set before the server starts",
+  );
+}
 
 /**
  * Generate access and refresh tokens for a user
@@ -78,19 +81,6 @@ export const verifyRefreshToken = (token: string): JWTPayload | null => {
 };
 
 /**
- * Decode a token without verification (for debugging)
- */
-export const decodeToken = (token: string): JWTPayload | null => {
-  try {
-    const decoded = jwt.decode(token) as JWTPayload;
-    return decoded;
-  } catch (error) {
-    logger.error("Error decoding token:", error);
-    return null;
-  }
-};
-
-/**
  * Generate a new access token from a valid refresh token
  */
 export const refreshAccessToken = async (
@@ -105,6 +95,11 @@ export const refreshAccessToken = async (
     const session = await getSession(payload.userId);
     if (!session || session.refreshToken !== refreshToken) {
       logger.warn(`Refresh token session mismatch for user: ${payload.userId}`);
+      return null;
+    }
+
+    if (session.userId !== payload.userId) {
+      logger.warn(`Refresh token user mismatch for user: ${payload.userId}`);
       return null;
     }
 

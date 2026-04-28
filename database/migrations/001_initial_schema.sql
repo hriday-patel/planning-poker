@@ -21,7 +21,7 @@ CREATE INDEX idx_users_created_at ON users(created_at);
 -- Decks table (voting systems)
 CREATE TABLE decks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    name VARCHAR(100) NOT NULL,
+    name VARCHAR(50) NOT NULL UNIQUE,
     values TEXT[] NOT NULL, -- Array of card values
     is_default BOOLEAN DEFAULT FALSE,
     created_by VARCHAR(255) REFERENCES users(id) ON DELETE SET NULL,
@@ -78,7 +78,7 @@ CREATE TABLE issues (
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'voting', 'voted')),
     final_estimate VARCHAR(10), -- Can be numeric or special values like '?', '☕'
     created_by VARCHAR(255) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    display_order INTEGER NOT NULL DEFAULT 0,
+    display_order INTEGER NOT NULL DEFAULT 0 CHECK (display_order >= 0),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -120,8 +120,8 @@ CREATE INDEX idx_votes_user_id ON votes(user_id);
 -- Timer state table (for synchronized timer across clients)
 CREATE TABLE timer_state (
     game_id UUID PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
-    duration_seconds INTEGER NOT NULL,
-    remaining_seconds INTEGER NOT NULL,
+    duration_seconds INTEGER NOT NULL CHECK (duration_seconds > 0),
+    remaining_seconds INTEGER NOT NULL CHECK (remaining_seconds >= 0 AND remaining_seconds <= duration_seconds),
     is_running BOOLEAN DEFAULT FALSE,
     time_issues BOOLEAN DEFAULT FALSE, -- Auto-reset after each round
     started_at TIMESTAMP WITH TIME ZONE,

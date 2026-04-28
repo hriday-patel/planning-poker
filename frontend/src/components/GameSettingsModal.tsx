@@ -185,7 +185,7 @@ export default function GameSettingsModal({
                 className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="all_players">All players</option>
-                <option value="only_facilitator">Only facilitator</option>
+                <option value="facilitator_only">Only facilitator</option>
               </select>
               <p className="text-xs text-gray-400 mt-1">
                 Players who are allowed to flip cards and show results
@@ -209,7 +209,7 @@ export default function GameSettingsModal({
                 className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="all_players">All players</option>
-                <option value="only_facilitator">Only facilitator</option>
+                <option value="facilitator_only">Only facilitator</option>
               </select>
               <p className="text-xs text-gray-400 mt-1">
                 Players who are allowed to create, delete and edit issues

@@ -33,6 +33,7 @@ export interface UserSession {
   spectatorMode: boolean;
   themePreference: string;
   createdAt: Date;
+  isGuest?: boolean; // Flag to identify guest users
 }
 
 // Authenticated Request
@@ -100,6 +101,24 @@ export interface InviteLinkResponse {
   inviteUrl: string;
   expiresAt: string;
   tokenId: string;
+}
+
+// Guest user types
+export interface GuestUserPayload {
+  displayName: string;
+}
+
+export interface GuestSession {
+  guestId: string;
+  displayName: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface GuestTokenPayload {
+  guestId: string;
+  displayName: string;
+  isGuest: true;
 }
 
 // Made with Bob

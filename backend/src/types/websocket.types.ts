@@ -115,6 +115,7 @@ export interface CardsRevealedPayload {
   }>;
   average: number | null;
   agreement: number; // 0-100 percentage
+  total_voters: number;
 }
 
 export interface NewRoundStartedPayload {

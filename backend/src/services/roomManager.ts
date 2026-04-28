@@ -176,6 +176,10 @@ export const submitVote = (
     throw new Error("No active voting round");
   }
 
+  if (room.current_round.is_revealed) {
+    throw new Error("Cannot vote after cards have been revealed");
+  }
+
   room.current_round.votes.set(userId, cardValue);
   logger.info(`Vote submitted by ${userId} in room ${gameId}`);
 };
@@ -254,6 +258,7 @@ export const calculateVotingResults = (gameId: string) => {
     votes: votes.map(([user_id, card_value]) => ({ user_id, card_value })),
     average,
     agreement,
+    total_voters: votes.length,
   };
 };
 
@@ -277,11 +282,16 @@ export const startTimer = (
   onTick: (remaining: number) => void,
   onEnd: () => void,
 ): void => {
+  if (!Number.isInteger(durationSeconds) || durationSeconds <= 0) {
+    throw new Error("Timer duration must be a positive whole number");
+  }
+
   const room = getRoom(gameId);
 
   // Stop existing timer if any
   if (room.timer?.interval_id) {
     clearInterval(room.timer.interval_id);
+    room.timer.interval_id = null;
   }
 
   room.timer = {
@@ -295,11 +305,15 @@ export const startTimer = (
   const intervalId = setInterval(() => {
     if (!room.timer) return;
 
-    room.timer.remaining_seconds--;
+    room.timer.remaining_seconds = Math.max(
+      0,
+      room.timer.remaining_seconds - 1,
+    );
     onTick(room.timer.remaining_seconds);
 
     if (room.timer.remaining_seconds <= 0) {
       clearInterval(intervalId);
+      room.timer.interval_id = null;
       room.timer.is_running = false;
       onEnd();
     }

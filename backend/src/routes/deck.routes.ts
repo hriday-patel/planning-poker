@@ -28,15 +28,7 @@ router.get(
     const authReq = req as AuthenticatedRequest;
 
     try {
-      if (!authReq.userId) {
-        res.status(401).json({
-          success: false,
-          error: "Not authenticated",
-        });
-        return;
-      }
-
-      const decks = await getAllDecks(authReq.userId);
+      const decks = await getAllDecks(authReq.userId!);
 
       res.json({
         success: true,
@@ -102,14 +94,6 @@ router.post(
     const authReq = req as AuthenticatedRequest;
 
     try {
-      if (!authReq.userId) {
-        res.status(401).json({
-          success: false,
-          error: "Not authenticated",
-        });
-        return;
-      }
-
       const { name, values } = req.body;
 
       if (!name || !values) {
@@ -128,7 +112,7 @@ router.post(
         return;
       }
 
-      const deck = await createCustomDeck(authReq.userId, { name, values });
+      const deck = await createCustomDeck(authReq.userId!, { name, values });
 
       res.status(201).json({
         success: true,
@@ -166,17 +150,9 @@ router.delete(
     const authReq = req as AuthenticatedRequest;
 
     try {
-      if (!authReq.userId) {
-        res.status(401).json({
-          success: false,
-          error: "Not authenticated",
-        });
-        return;
-      }
-
       const { deckId } = req.params;
 
-      const deleted = await deleteCustomDeck(deckId, authReq.userId);
+      const deleted = await deleteCustomDeck(deckId, authReq.userId!);
 
       if (!deleted) {
         res.status(404).json({

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import ThemeToggle from "@/components/ThemeToggle";
+import GuestModeModal from "@/components/GuestModeModal";
 
 const ibmLogoUrl =
   process.env.NEXT_PUBLIC_IBM_LOGO_URL ||
@@ -11,6 +12,7 @@ const ibmLogoUrl =
 export default function Home() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showGuestModal, setShowGuestModal] = useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -179,17 +181,17 @@ export default function Home() {
                 Start New Game
               </button>
 
-              <a
-                href="#features"
-                className="rounded-2xl border px-8 py-4 text-center text-lg font-semibold transition-colors"
+              <button
+                onClick={() => setShowGuestModal(true)}
+                className="rounded-2xl border px-8 py-4 text-center text-lg font-semibold transition-colors hover:opacity-80"
                 style={{
                   backgroundColor: "var(--surface-primary)",
                   borderColor: "var(--border-color)",
                   color: "var(--text-primary)",
                 }}
               >
-                Learn More
-              </a>
+                Try as Guest
+              </button>
             </div>
 
             <div className="mt-10 grid gap-4 sm:grid-cols-3">
@@ -638,6 +640,12 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      <GuestModeModal
+        isOpen={showGuestModal}
+        onClose={() => setShowGuestModal(false)}
+        mode="create"
+      />
     </div>
   );
 }

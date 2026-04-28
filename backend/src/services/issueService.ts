@@ -99,23 +99,41 @@ export const createIssue = async (
       );
     }
 
-    // Get the next display order
-    const orderResult = await db.query(
-      "SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM issues WHERE game_id = $1",
-      [gameId],
-    );
-    const nextOrder = orderResult.rows[0].next_order;
+    const client = await db.connect();
 
-    // Create issue
-    const result = await db.query(
-      `INSERT INTO issues (game_id, title, status, created_by, display_order)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [gameId, payload.title.trim(), IssueStatus.PENDING, userId, nextOrder],
-    );
+    try {
+      await client.query("BEGIN");
 
-    logger.info(`Issue created: ${result.rows[0].id} in game ${gameId}`);
-    return result.rows[0] as IssueRecord;
+      // Lock the parent game row so concurrent issue writes for the same game
+      // serialize within this transaction before calculating the next order.
+      await client.query("SELECT id FROM games WHERE id = $1 FOR UPDATE", [
+        gameId,
+      ]);
+
+      const orderResult = await client.query(
+        "SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM issues WHERE game_id = $1",
+        [gameId],
+      );
+      const nextOrder = orderResult.rows[0].next_order;
+
+      // Create issue
+      const result = await client.query(
+        `INSERT INTO issues (game_id, title, status, created_by, display_order)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [gameId, payload.title.trim(), IssueStatus.PENDING, userId, nextOrder],
+      );
+
+      await client.query("COMMIT");
+
+      logger.info(`Issue created: ${result.rows[0].id} in game ${gameId}`);
+      return result.rows[0] as IssueRecord;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     logger.error("Error creating issue:", error);
     throw error;
@@ -293,30 +311,48 @@ export const importIssues = async (
       throw new Error("No valid issue titles provided");
     }
 
-    // Get the next display order
-    const orderResult = await db.query(
-      "SELECT COALESCE(MAX(display_order), 0) as max_order FROM issues WHERE game_id = $1",
-      [gameId],
-    );
-    let nextOrder = orderResult.rows[0].max_order + 1;
+    const client = await db.connect();
 
-    // Insert all issues
-    const createdIssues: IssueRecord[] = [];
+    try {
+      await client.query("BEGIN");
 
-    for (const title of validTitles) {
-      const result = await db.query(
-        `INSERT INTO issues (game_id, title, status, created_by, display_order)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *`,
-        [gameId, title, IssueStatus.PENDING, userId, nextOrder++],
+      // Lock the parent game row so concurrent issue imports for the same game
+      // serialize within this transaction before calculating the next order.
+      await client.query("SELECT id FROM games WHERE id = $1 FOR UPDATE", [
+        gameId,
+      ]);
+
+      const orderResult = await client.query(
+        "SELECT COALESCE(MAX(display_order), 0) as max_order FROM issues WHERE game_id = $1",
+        [gameId],
       );
-      createdIssues.push(result.rows[0] as IssueRecord);
-    }
+      let nextOrder = orderResult.rows[0].max_order + 1;
 
-    logger.info(
-      `${createdIssues.length} issues imported to game ${gameId} by user ${userId}`,
-    );
-    return createdIssues;
+      // Insert all issues
+      const createdIssues: IssueRecord[] = [];
+
+      for (const title of validTitles) {
+        const result = await client.query(
+          `INSERT INTO issues (game_id, title, status, created_by, display_order)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING *`,
+          [gameId, title, IssueStatus.PENDING, userId, nextOrder++],
+        );
+        createdIssues.push(result.rows[0] as IssueRecord);
+      }
+
+      await client.query("COMMIT");
+
+      logger.info(
+        `${createdIssues.length} issues imported to game ${gameId} by user ${userId}`,
+      );
+      return createdIssues;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     logger.error("Error importing issues:", error);
     throw error;
@@ -344,15 +380,27 @@ export const reorderIssues = async (
       );
     }
 
-    // Update display orders
-    for (const { id, display_order } of issueOrders) {
-      await db.query(
-        "UPDATE issues SET display_order = $1 WHERE id = $2 AND game_id = $3",
-        [display_order, id, gameId],
-      );
-    }
+    const client = await db.connect();
 
-    logger.info(`Issues reordered in game ${gameId} by user ${userId}`);
+    try {
+      await client.query("BEGIN");
+
+      // Update display orders atomically
+      for (const { id, display_order } of issueOrders) {
+        await client.query(
+          "UPDATE issues SET display_order = $1 WHERE id = $2 AND game_id = $3",
+          [display_order, id, gameId],
+        );
+      }
+
+      await client.query("COMMIT");
+      logger.info(`Issues reordered in game ${gameId} by user ${userId}`);
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   } catch (error) {
     logger.error("Error reordering issues:", error);
     throw error;
@@ -380,24 +428,37 @@ export const setVotingIssue = async (
       );
     }
 
-    // Reset all issues in the game to pending (except voted ones)
-    await db.query(
-      "UPDATE issues SET status = $1 WHERE game_id = $2 AND status = $3",
-      [IssueStatus.PENDING, gameId, IssueStatus.VOTING],
-    );
+    const client = await db.connect();
 
-    // Set the selected issue to voting
-    const result = await db.query(
-      "UPDATE issues SET status = $1 WHERE id = $2 AND game_id = $3 RETURNING *",
-      [IssueStatus.VOTING, issueId, gameId],
-    );
+    try {
+      await client.query("BEGIN");
 
-    if (result.rows.length === 0) {
-      throw new Error("Issue not found");
+      // Reset all issues in the game to pending (except voted ones)
+      await client.query(
+        "UPDATE issues SET status = $1 WHERE game_id = $2 AND status = $3",
+        [IssueStatus.PENDING, gameId, IssueStatus.VOTING],
+      );
+
+      // Set the selected issue to voting
+      const result = await client.query(
+        "UPDATE issues SET status = $1 WHERE id = $2 AND game_id = $3 RETURNING *",
+        [IssueStatus.VOTING, issueId, gameId],
+      );
+
+      if (result.rows.length === 0) {
+        throw new Error("Issue not found");
+      }
+
+      await client.query("COMMIT");
+
+      logger.info(`Issue ${issueId} set to voting in game ${gameId}`);
+      return result.rows[0] as IssueRecord;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
     }
-
-    logger.info(`Issue ${issueId} set to voting in game ${gameId}`);
-    return result.rows[0] as IssueRecord;
   } catch (error) {
     logger.error("Error setting voting issue:", error);
     throw error;

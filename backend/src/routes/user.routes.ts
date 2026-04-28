@@ -17,14 +17,6 @@ router.patch(
     const authReq = req as AuthenticatedRequest;
 
     try {
-      if (!authReq.userId) {
-        res.status(401).json({
-          success: false,
-          error: "Not authenticated",
-        });
-        return;
-      }
-
       const { display_name, avatar_url, spectator_mode, theme_preference } =
         req.body;
 
@@ -53,7 +45,7 @@ router.patch(
         return;
       }
 
-      const updatedUser = await updateUser(authReq.userId, {
+      const updatedUser = await updateUser(authReq.userId!, {
         spectator_mode,
         theme_preference,
       });

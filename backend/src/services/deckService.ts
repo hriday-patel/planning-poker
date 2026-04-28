@@ -114,7 +114,10 @@ export const createCustomDeck = async (
 
     logger.info(`Custom deck created: ${result.rows[0].id} by user ${userId}`);
     return result.rows[0] as Deck;
-  } catch (error) {
+  } catch (error: any) {
+    if (error.code === "23505") {
+      throw new Error("A deck with this name already exists");
+    }
     logger.error("Error creating custom deck:", error);
     throw error;
   }
@@ -145,8 +148,8 @@ export const deleteCustomDeck = async (
 
     // Check if deck is being used by any active games
     const gamesUsingDeck = await db.query(
-      `SELECT COUNT(*) as count FROM games 
-       WHERE voting_system = $1 AND status = 'active'`,
+      `SELECT COUNT(*) as count FROM games
+       WHERE deck_id = $1 AND status = 'active'`,
       [deckId],
     );
 
@@ -179,18 +182,15 @@ export const deleteCustomDeck = async (
 export const initializeSystemDecks = async (): Promise<void> => {
   try {
     for (const deck of SYSTEM_DECKS) {
-      // Check if deck already exists
-      const existing = await db.query(
-        "SELECT id FROM decks WHERE name = $1 AND is_default = true",
-        [deck.name],
+      const result = await db.query(
+        `INSERT INTO decks (name, values, is_default, created_by)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (name) DO NOTHING
+         RETURNING id`,
+        [deck.name, deck.values, deck.is_default, deck.created_by],
       );
 
-      if (existing.rows.length === 0) {
-        await db.query(
-          `INSERT INTO decks (name, values, is_default, created_by)
-           VALUES ($1, $2, $3, $4)`,
-          [deck.name, deck.values, deck.is_default, deck.created_by],
-        );
+      if (result.rows.length > 0) {
         logger.info(`System deck initialized: ${deck.name}`);
       }
     }

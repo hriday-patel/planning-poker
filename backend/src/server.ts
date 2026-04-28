@@ -1,3 +1,7 @@
+// Load environment variables FIRST, before any module that reads process.env
+// at import time (e.g. tokenService).
+import "./config/env";
+
 import express, { Application } from "express";
 import fs from "fs";
 import http from "http";
@@ -11,10 +15,10 @@ import morgan from "morgan";
 import compression from "compression";
 import cookieParser from "cookie-parser";
 import passport from "passport";
-import dotenv from "dotenv";
 import { errorHandler } from "./middleware/errorHandler";
 import { logger } from "./utils/logger";
-import { connectRedis, disconnectRedis } from "./config/redis";
+import { connectRedis, disconnectRedis, redisClient } from "./config/redis";
+import { db } from "./config/database";
 import { configurePassport } from "./config/passport";
 import { verifyAccessToken } from "./services/tokenService";
 import authRoutes from "./routes/auth.routes";
@@ -22,6 +26,7 @@ import userRoutes from "./routes/user.routes";
 import gameRoutes from "./routes/game.routes";
 import deckRoutes from "./routes/deck.routes";
 import issueRoutes from "./routes/issue.routes";
+import guestRoutes from "./routes/guest.routes";
 import { initializeSystemDecks } from "./services/deckService";
 import { registerHandlers } from "./websocket/handlers";
 
@@ -71,18 +76,6 @@ const extractSocketAccessToken = (
 
   return null;
 };
-
-const envDirectory = path.resolve(__dirname, "..");
-const envFileName =
-  process.env.NODE_ENV === "production"
-    ? ".env.production"
-    : process.env.NODE_ENV === "test"
-      ? ".env.test"
-      : ".env.development";
-
-// Load environment variables
-dotenv.config({ path: path.join(envDirectory, envFileName) });
-dotenv.config({ path: path.join(envDirectory, ".env.local"), override: true });
 
 // Initialize Redis connection
 connectRedis().catch((error) => {
@@ -171,8 +164,34 @@ app.use(passport.initialize());
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
 // Health check endpoint
-app.get("/health", (_req, res) => {
-  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+app.get("/health", async (_req, res) => {
+  const timestamp = new Date().toISOString();
+
+  try {
+    await Promise.all([db.query("SELECT 1"), redisClient.ping()]);
+
+    res.status(200).json({
+      status: "ok",
+      timestamp,
+      dependencies: {
+        database: "ok",
+        redis: "ok",
+      },
+    });
+    return;
+  } catch (error) {
+    logger.error("Health check failed:", error);
+
+    res.status(503).json({
+      status: "degraded",
+      timestamp,
+      dependencies: {
+        database: "unknown",
+        redis: "unknown",
+      },
+    });
+    return;
+  }
 });
 
 // API routes
@@ -182,6 +201,7 @@ app.get("/api/v1", (_req, res) => {
     version: "1.0.0",
     endpoints: {
       auth: "/api/v1/auth",
+      guest: "/api/v1/guest",
       users: "/api/v1/users",
       games: "/api/v1/games",
       decks: "/api/v1/decks",
@@ -191,9 +211,10 @@ app.get("/api/v1", (_req, res) => {
 });
 
 app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/guest", guestRoutes);
 app.use("/api/v1/users", userRoutes);
-app.use("/api/v1/games", issueRoutes);
 app.use("/api/v1/games", gameRoutes);
+app.use("/api/v1/games", issueRoutes);
 app.use("/api/v1/decks", deckRoutes);
 
 // Error handling middleware

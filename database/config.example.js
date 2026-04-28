@@ -12,8 +12,8 @@ module.exports = {
       host: process.env.DB_HOST || "localhost",
       port: process.env.DB_PORT || 5432,
       database: process.env.DB_NAME || "planning_poker_dev",
-      user: process.env.DB_USER || "postgres",
-      password: process.env.DB_PASSWORD || "postgres",
+      user: process.env.DB_USER || "planning_poker",
+      password: process.env.DB_PASSWORD || "planning_poker",
     },
     pool: {
       min: 2,
@@ -34,8 +34,8 @@ module.exports = {
       host: process.env.DB_HOST || "localhost",
       port: process.env.DB_PORT || 5432,
       database: process.env.DB_NAME || "planning_poker_test",
-      user: process.env.DB_USER || "postgres",
-      password: process.env.DB_PASSWORD || "postgres",
+      user: process.env.DB_USER || "planning_poker",
+      password: process.env.DB_PASSWORD || "planning_poker",
     },
     pool: {
       min: 1,

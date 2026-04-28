@@ -9,6 +9,7 @@ import multer from "multer";
 import { parse } from "csv-parse/sync";
 import { AuthenticatedRequest } from "../types/auth.types";
 import { authenticate } from "../middleware/auth";
+import { uploadRateLimiter } from "../middleware/rateLimiter";
 import {
   getGameIssues,
   createIssue,
@@ -304,6 +305,7 @@ router.delete(
 router.post(
   "/:gameId/issues/import",
   authenticate as any,
+  uploadRateLimiter,
   upload.single("file"),
   async (req: Request, res: Response): Promise<void> => {
     const authReq = req as AuthenticatedRequest;
