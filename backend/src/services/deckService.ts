@@ -54,6 +54,30 @@ export const getDeckById = async (deckId: string): Promise<Deck | null> => {
 };
 
 /**
+ * Get a deck by display name
+ */
+export const getDeckByName = async (name: string): Promise<Deck | null> => {
+  try {
+    const result = await db.query(
+      `SELECT * FROM decks
+       WHERE LOWER(name) = LOWER($1)
+       ORDER BY is_default DESC
+       LIMIT 1`,
+      [name],
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return result.rows[0] as Deck;
+  } catch (error) {
+    logger.error("Error fetching deck by name:", error);
+    throw error;
+  }
+};
+
+/**
  * Create a custom deck for a user
  */
 export const createCustomDeck = async (

@@ -11,13 +11,40 @@ import {
   gameCreationRateLimiter,
   authRateLimiter,
 } from "../middleware/rateLimiter";
-import { createGuestSession, isGuestUser } from "../services/guestService";
-import { createGame, getGameDetails } from "../services/gameService";
+import {
+  createGuestSession,
+  isGuestUser,
+  updateGuestDisplayName,
+} from "../services/guestService";
+import {
+  addGameParticipant,
+  createGame,
+  getGameDetails,
+} from "../services/gameService";
 import { logger } from "../utils/logger";
 
 const router = Router();
 
 const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+const setAuthCookies = (
+  res: Response,
+  tokens: { accessToken: string; refreshToken: string },
+) => {
+  res.cookie("accessToken", tokens.accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: COOKIE_MAX_AGE,
+  });
+
+  res.cookie("refreshToken", tokens.refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: COOKIE_MAX_AGE,
+  });
+};
 
 /**
  * POST /api/v1/guest/create-session
@@ -33,20 +60,7 @@ router.post(
       // Create guest session
       const { user, tokens } = await createGuestSession(displayName);
 
-      // Set httpOnly cookies
-      res.cookie("accessToken", tokens.accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: COOKIE_MAX_AGE,
-      });
-
-      res.cookie("refreshToken", tokens.refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: COOKIE_MAX_AGE,
-      });
+      setAuthCookies(res, tokens);
 
       res.status(201).json({
         success: true,
@@ -79,28 +93,27 @@ router.post(
     try {
       let userId = authReq.userId;
       let isNewGuest = false;
+      const requestedDisplayName =
+        typeof req.body.displayName === "string"
+          ? req.body.displayName.trim()
+          : "";
 
       // If no user is authenticated, create a guest session
       if (!userId) {
-        const { displayName } = req.body;
-        const { user, tokens } = await createGuestSession(displayName);
+        const { user, tokens } = await createGuestSession(
+          requestedDisplayName || undefined,
+        );
         userId = user.userId;
         isNewGuest = true;
 
-        // Set cookies for the new guest
-        res.cookie("accessToken", tokens.accessToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: COOKIE_MAX_AGE,
-        });
-
-        res.cookie("refreshToken", tokens.refreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: COOKIE_MAX_AGE,
-        });
+        setAuthCookies(res, tokens);
+      } else if (isGuestUser(userId) && requestedDisplayName) {
+        const { user, tokens } = await updateGuestDisplayName(
+          userId,
+          requestedDisplayName,
+        );
+        userId = user.userId;
+        setAuthCookies(res, tokens);
       }
 
       const {
@@ -146,7 +159,11 @@ router.post(
     } catch (error: any) {
       logger.error("Error creating game as guest:", error);
 
-      if (error.message && error.message.includes("must")) {
+      if (
+        error.message &&
+        (error.message.includes("must") ||
+          error.message.includes("Display name"))
+      ) {
         res.status(400).json({
           success: false,
           error: error.message,
@@ -177,28 +194,27 @@ router.post(
     try {
       let userId = authReq.userId;
       let isNewGuest = false;
+      const requestedDisplayName =
+        typeof req.body.displayName === "string"
+          ? req.body.displayName.trim()
+          : "";
 
       // If no user is authenticated, create a guest session
       if (!userId) {
-        const { displayName } = req.body;
-        const { user, tokens } = await createGuestSession(displayName);
+        const { user, tokens } = await createGuestSession(
+          requestedDisplayName || undefined,
+        );
         userId = user.userId;
         isNewGuest = true;
 
-        // Set cookies for the new guest
-        res.cookie("accessToken", tokens.accessToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: COOKIE_MAX_AGE,
-        });
-
-        res.cookie("refreshToken", tokens.refreshToken, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "lax",
-          maxAge: COOKIE_MAX_AGE,
-        });
+        setAuthCookies(res, tokens);
+      } else if (isGuestUser(userId) && requestedDisplayName) {
+        const { user, tokens } = await updateGuestDisplayName(
+          userId,
+          requestedDisplayName,
+        );
+        userId = user.userId;
+        setAuthCookies(res, tokens);
       }
 
       const { gameId } = req.params;
@@ -214,6 +230,8 @@ router.post(
         return;
       }
 
+      await addGameParticipant(gameId, userId);
+
       res.json({
         success: true,
         game: gameDetails,
@@ -221,8 +239,21 @@ router.post(
         userId,
       });
       return;
-    } catch (error) {
+    } catch (error: any) {
       logger.error("Error joining game as guest:", error);
+
+      if (
+        error.message &&
+        (error.message.includes("must") ||
+          error.message.includes("Display name"))
+      ) {
+        res.status(400).json({
+          success: false,
+          error: error.message,
+        });
+        return;
+      }
+
       res.status(500).json({
         success: false,
         error: "Failed to join game",

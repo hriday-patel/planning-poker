@@ -1,13 +1,63 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Game, GameState, VotingPhase, Player } from "@/types/game.types";
+import {
+  BarChart3,
+  Check,
+  ChevronDown,
+  Clock3,
+  History,
+  ListChecks,
+  Plus,
+  Settings,
+  Share2,
+  TimerReset,
+  Trophy,
+  Users,
+  X,
+} from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
+import {
+  GamePermission,
+  GameState,
+  Issue,
+  VotingPhase,
+  Player,
+} from "@/types/game.types";
 import { useGameSocket, VotingResults } from "@/hooks/useGameSocket";
 import Timer from "@/components/Timer";
 import InviteModal from "@/components/InviteModal";
 import VotingHistory from "@/components/VotingHistory";
 import GameSettingsModal from "@/components/GameSettingsModal";
+import GuestModeModal from "@/components/GuestModeModal";
+import { apiFetch } from "@/lib/api";
+
+const formatTimer = (totalSeconds?: number | null) => {
+  if (totalSeconds === null || totalSeconds === undefined) {
+    return "--:--";
+  }
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+};
+
+const formatSpeed = (seconds?: number | null) => {
+  if (seconds === null || seconds === undefined) {
+    return "--";
+  }
+
+  return `${seconds.toFixed(seconds % 1 === 0 ? 0 : 1)}s`;
+};
+
+const primaryButtonStyle = {
+  background:
+    "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
+  color: "white",
+  boxShadow:
+    "0 16px 40px -24px color-mix(in srgb, var(--primary) 70%, transparent)",
+} as const;
 
 export default function GameRoomPage() {
   const params = useParams();
@@ -30,6 +80,8 @@ export default function GameRoomPage() {
   const [showIssuesPanel, setShowIssuesPanel] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showGuestJoinModal, setShowGuestJoinModal] = useState(false);
+  const [showAddIssueForm, setShowAddIssueForm] = useState(false);
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showGameDropdown, setShowGameDropdown] = useState(false);
@@ -40,33 +92,37 @@ export default function GameRoomPage() {
   const [countdownNumber, setCountdownNumber] = useState(3);
   const [timeIssuesEnabled, setTimeIssuesEnabled] = useState(false);
   const [timerAlert, setTimerAlert] = useState(false);
+  const [newIssueTitle, setNewIssueTitle] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [customEstimate, setCustomEstimate] = useState("");
+  const [estimateStatus, setEstimateStatus] = useState<string | null>(null);
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const bootstrapSession = async () => {
       try {
-        const appUrl =
-          process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
-        const response = await fetch(`${appUrl}/api/v1/auth/me`, {
-          credentials: "include",
-        });
+        const response = await apiFetch("/api/v1/auth/me");
 
         if (!response.ok) {
-          router.push("/login");
+          setGameState((prev) => ({ ...prev, isLoading: false }));
+          setShowGuestJoinModal(true);
           return;
         }
 
+        const data = await response.json();
+        setCurrentUserId(data.user?.userId ?? null);
         setIsAuthenticated(true);
       } catch (_error) {
-        router.push("/login");
+        setGameState((prev) => ({ ...prev, isLoading: false }));
+        setShowGuestJoinModal(true);
       }
     };
 
     void bootstrapSession();
-  }, [router]);
+  }, []);
 
-  // Initialize WebSocket connection
   const {
     gameState: wsGameState,
     isConnected,
@@ -79,12 +135,13 @@ export default function GameRoomPage() {
     startTimer,
     pauseTimer,
     stopTimer,
+    addIssue,
+    updateIssue,
   } = useGameSocket({
     gameId,
     isAuthenticated,
     onError: (error) => {
-      console.error("WebSocket error:", error);
-      setGameState((prev) => ({ ...prev, error }));
+      setActionError(error);
     },
     onPlayerJoined: (player) => {
       console.log("Player joined:", player.display_name);
@@ -97,41 +154,44 @@ export default function GameRoomPage() {
     },
     onCardsRevealed: (results) => {
       console.log("Cards revealed:", results);
-      setVotingResults(results);
+      setActionError(null);
 
-      // Show countdown animation if enabled
-      if (gameState.game?.show_countdown) {
-        setShowCountdown(true);
-        setCountdownNumber(3);
-
-        const countdownInterval = setInterval(() => {
-          setCountdownNumber((prev) => {
-            if (prev <= 1) {
-              clearInterval(countdownInterval);
-              setTimeout(() => setShowCountdown(false), 500);
-              return 0;
-            }
-            return prev - 1;
-          });
-        }, 1000);
+      if (!gameState.game?.show_countdown) {
+        setVotingResults(results);
+        return;
       }
-    },
-    onNewRound: (roundId, issueId) => {
-      console.log("New round started:", roundId, issueId);
+
       setVotingResults(null);
+      setShowCountdown(true);
+      setCountdownNumber(3);
+
+      let nextCount = 3;
+      const countdownInterval = window.setInterval(() => {
+        nextCount -= 1;
+        setCountdownNumber(nextCount);
+
+        if (nextCount <= 0) {
+          window.clearInterval(countdownInterval);
+          setVotingResults(results);
+          window.setTimeout(() => setShowCountdown(false), 220);
+        }
+      }, 700);
+    },
+    onNewRound: (_roundId, issueId) => {
+      setVotingResults(null);
+      setActionError(null);
       setGameState((prev) => ({
         ...prev,
+        currentIssue: prev.issues.find((issue) => issue.id === issueId) || null,
         selectedCard: null,
         votingPhase: VotingPhase.WAITING,
       }));
 
-      // Auto-restart timer if "time issues" is enabled
       if (timeIssuesEnabled && wsGameState?.timer) {
         startTimer(wsGameState.timer.duration_seconds);
       }
     },
     onTimerTick: (remainingSeconds) => {
-      // Show alert when timer is low
       if (remainingSeconds === 60 && !timerAlert) {
         setTimerAlert(true);
       } else if (remainingSeconds > 60 && timerAlert) {
@@ -139,47 +199,53 @@ export default function GameRoomPage() {
       }
     },
     onTimerEnded: () => {
-      console.log("Timer ended!");
       setTimerAlert(false);
-      // Could show a notification or play a sound here
     },
   });
 
-  // Sync WebSocket game state with local state
   useEffect(() => {
-    if (wsGameState) {
-      const players: Player[] = wsGameState.players.map((p) => ({
-        id: p.user_id,
-        display_name: p.display_name,
-        avatar_url: p.avatar_url,
-        is_facilitator: p.user_id === wsGameState.game.facilitator_id,
-        is_spectator: p.is_spectator,
-        has_voted: p.has_voted || false,
-        card_value: null, // Hidden until revealed
-        is_online: p.is_online,
-      }));
-
-      // Determine voting phase
-      let phase = VotingPhase.WAITING;
-      if (wsGameState.current_round) {
-        if (wsGameState.current_round.is_revealed) {
-          phase = VotingPhase.REVEALED;
-        } else if (gameState.selectedCard) {
-          phase = VotingPhase.VOTING;
-        }
-      }
-
-      setGameState((prev) => ({
-        ...prev,
-        game: wsGameState.game,
-        players,
-        votingPhase: phase,
-        isLoading: false,
-      }));
+    if (!wsGameState) {
+      return;
     }
-  }, [wsGameState, gameState.selectedCard]);
 
-  // Close dropdown when clicking outside
+    const players: Player[] = wsGameState.players.map((player) => ({
+      id: player.user_id,
+      display_name: player.display_name,
+      avatar_url: player.avatar_url,
+      is_facilitator: player.user_id === wsGameState.game.facilitator_id,
+      is_spectator: player.is_spectator,
+      has_voted: player.has_voted || false,
+      card_value: null,
+      is_online: player.is_online,
+      can_vote: player.can_vote,
+    }));
+
+    let phase = VotingPhase.WAITING;
+    if (wsGameState.current_round) {
+      if (wsGameState.current_round.is_revealed) {
+        phase = VotingPhase.REVEALED;
+      } else if (wsGameState.current_round.issue_id && gameState.selectedCard) {
+        phase = VotingPhase.VOTING;
+      }
+    }
+
+    setGameState((prev) => ({
+      ...prev,
+      game: wsGameState.game,
+      players,
+      issues: wsGameState.issues || prev.issues,
+      currentIssue: wsGameState.current_round?.issue_id
+        ? (wsGameState.issues || prev.issues).find(
+            (issue) => issue.id === wsGameState.current_round?.issue_id,
+          ) || null
+        : null,
+      currentUser:
+        players.find((player) => player.id === currentUserId) || null,
+      votingPhase: phase,
+      isLoading: false,
+    }));
+  }, [wsGameState, gameState.selectedCard, currentUserId]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
@@ -195,126 +261,203 @@ export default function GameRoomPage() {
     }
   }, [showGameDropdown]);
 
-  // Fallback: Fetch game data if WebSocket not connected
+  const activeRound = wsGameState?.current_round || null;
+  const activeIssue = gameState.currentIssue;
+  const eligiblePlayers = gameState.players.filter(
+    (player) => !player.is_spectator && player.can_vote !== false,
+  );
+  const votedCount = eligiblePlayers.filter(
+    (player) => player.has_voted,
+  ).length;
+  const allPlayersVoted =
+    Boolean(activeRound?.issue_id) &&
+    eligiblePlayers.length > 0 &&
+    eligiblePlayers.every((player) => player.has_voted);
+  const currentUserCanVote =
+    Boolean(gameState.currentUser) &&
+    !gameState.currentUser?.is_spectator &&
+    gameState.currentUser?.can_vote !== false;
+  const currentUserCanReveal =
+    Boolean(gameState.currentUser?.is_facilitator) ||
+    gameState.game?.who_can_reveal === GamePermission.ALL_PLAYERS;
+  const currentUserIsFacilitator = Boolean(
+    gameState.currentUser?.is_facilitator,
+  );
+  const canManageIssues =
+    currentUserIsFacilitator ||
+    gameState.game?.who_can_manage_issues === GamePermission.ALL_PLAYERS;
+  const canPickCards =
+    isConnected &&
+    currentUserCanVote &&
+    Boolean(activeRound?.issue_id) &&
+    !activeRound?.is_revealed;
+  const canRevealCards =
+    canPickCards &&
+    allPlayersVoted &&
+    currentUserCanReveal &&
+    !gameState.game?.auto_reveal;
+  const resultDistribution = votingResults?.distribution ?? {};
+  const displayedEstimate =
+    activeIssue?.final_estimate || votingResults?.final_estimate || null;
+  const currentVote = votingResults?.votes.find(
+    (vote) => vote.user_id === currentUserId,
+  );
+  const timerRemaining = wsGameState?.timer?.remaining_seconds ?? null;
+  const timerRunning = wsGameState?.timer?.is_running ?? false;
+
+  const nextPendingIssue = useMemo(
+    () => gameState.issues.find((issue) => issue.status !== "voted") || null,
+    [gameState.issues],
+  );
+
+  const issueCounts = useMemo(
+    () => ({
+      total: gameState.issues.length,
+      voted: gameState.issues.filter((issue) => issue.status === "voted")
+        .length,
+      pending: gameState.issues.filter((issue) => issue.status !== "voted")
+        .length,
+    }),
+    [gameState.issues],
+  );
+
   useEffect(() => {
-    if (!isAuthenticated || isConnected) return;
+    if (!votingResults) {
+      setCustomEstimate("");
+      setEstimateStatus(null);
+      return;
+    }
 
-    const fetchGame = async () => {
-      try {
-        // Mock data for initial load
-        const mockGame: Game = {
-          id: gameId,
-          name: "Sprint 23 Planning",
-          creator_id: "user-1",
-          facilitator_id: "user-1",
-          voting_system: "deck-1",
-          who_can_reveal: "all_players" as any,
-          who_can_manage_issues: "all_players" as any,
-          auto_reveal: false,
-          fun_features_enabled: true,
-          show_average: true,
-          show_countdown: true,
-          status: "active" as any,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          deck: {
-            id: "deck-1",
-            name: "Fibonacci",
-            values: ["0", "1", "2", "3", "5", "8", "13", "21", "?", "☕"],
-            is_default: true,
-            created_by: null,
-            created_at: new Date().toISOString(),
-          },
-          creator_name: "John Doe",
-          facilitator_name: "John Doe",
-        };
+    setCustomEstimate(displayedEstimate || "");
+    setEstimateStatus(null);
+  }, [votingResults, displayedEstimate]);
 
-        const mockPlayers: Player[] = [
-          {
-            id: "user-1",
-            display_name: "John Doe",
-            avatar_url: null,
-            is_facilitator: true,
-            is_spectator: false,
-            has_voted: false,
-            card_value: null,
-            is_online: true,
-          },
-          {
-            id: "user-2",
-            display_name: "Jane Smith",
-            avatar_url: null,
-            is_facilitator: false,
-            is_spectator: false,
-            has_voted: false,
-            card_value: null,
-            is_online: true,
-          },
-        ];
+  const handleAddIssue = (event: React.FormEvent) => {
+    event.preventDefault();
 
-        setGameState((prev) => ({
-          ...prev,
-          game: mockGame,
-          players: mockPlayers,
-          currentUser: mockPlayers[0],
-          isLoading: false,
-        }));
-      } catch (error) {
-        console.error("Error fetching game:", error);
-        setGameState((prev) => ({
-          ...prev,
-          error: "Failed to load game",
-          isLoading: false,
-        }));
-      }
-    };
+    const title = newIssueTitle.trim();
+    if (!title) {
+      return;
+    }
 
-    fetchGame();
-  }, [gameId, isAuthenticated, isConnected]);
+    if (!isConnected) {
+      setActionError("Connect to the game before adding an issue");
+      return;
+    }
+
+    if (!canManageIssues) {
+      setActionError("Only the facilitator can manage issues in this game");
+      return;
+    }
+
+    addIssue(title);
+    setNewIssueTitle("");
+    setShowAddIssueForm(false);
+    setActionError(null);
+  };
+
+  const handleVoteIssue = (issue: Issue) => {
+    if (!isConnected) {
+      setActionError("Connect to the game before starting a vote");
+      return;
+    }
+
+    if (activeRound && !activeRound.is_revealed) {
+      setActionError("Reveal the current issue before starting another vote");
+      return;
+    }
+
+    if (issue.status === "voted") {
+      setActionError("This issue has already been voted");
+      return;
+    }
+
+    if (!canManageIssues) {
+      setActionError("Only the facilitator can start issue voting");
+      return;
+    }
+
+    setVotingResults(null);
+    setActionError(null);
+    startNewRound(issue.id);
+  };
 
   const handleCardSelect = (value: string) => {
-    // Update local state immediately (optimistic update)
+    if (!canPickCards) {
+      setActionError(
+        gameState.currentUser?.can_vote === false
+          ? "You joined mid-round. Wait for the next issue."
+          : "Pick an issue before voting",
+      );
+      return;
+    }
+
     setGameState((prev) => ({
       ...prev,
+      error: null,
       selectedCard: value,
       votingPhase: VotingPhase.VOTING,
     }));
 
-    // Submit vote via WebSocket
     submitVote(value);
   };
 
   const handleRevealCards = () => {
-    // Trigger reveal via WebSocket
+    if (!allPlayersVoted) {
+      setActionError("Wait for every eligible player to vote");
+      return;
+    }
+
+    if (!currentUserCanReveal) {
+      setActionError("You don't have permission to reveal cards");
+      return;
+    }
+
+    setActionError(null);
     revealCards();
   };
 
-  const handleStartNewVoting = () => {
-    // Start new round via WebSocket
-    startNewRound();
+  const handlePickNextIssue = () => {
+    setShowIssuesPanel(true);
+    if (nextPendingIssue) {
+      setActionError(null);
+    }
   };
 
-  // Show reconnecting indicator
+  const handleSaveEstimate = () => {
+    if (!currentUserIsFacilitator || !activeIssue || !votingResults) {
+      return;
+    }
+
+    const nextEstimate =
+      customEstimate.trim() || votingResults.final_estimate || null;
+
+    updateIssue({
+      id: activeIssue.id,
+      title: activeIssue.title,
+      status: activeIssue.status,
+      final_estimate: nextEstimate,
+      display_order: activeIssue.display_order,
+    });
+
+    setVotingResults((prev) =>
+      prev ? { ...prev, final_estimate: nextEstimate } : prev,
+    );
+    setEstimateStatus("Estimate saved");
+    setActionError(null);
+  };
+
   if (isReconnecting) {
     return (
-      <div className="min-h-screen bg-[#1a2035] flex items-center justify-center">
-        <div className="text-yellow-400 text-xl flex items-center gap-3">
-          <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24">
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-              fill="none"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
+      <div
+        className="flex min-h-screen items-center justify-center transition-colors"
+        style={{
+          backgroundColor: "var(--bg-primary)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <div className="flex items-center gap-3 text-lg font-semibold">
+          <TimerReset className="h-5 w-5 animate-spin" />
           Reconnecting to game...
         </div>
       </div>
@@ -323,16 +466,44 @@ export default function GameRoomPage() {
 
   if (gameState.isLoading) {
     return (
-      <div className="min-h-screen bg-[#1a2035] flex items-center justify-center">
-        <div className="text-white text-xl">Loading game...</div>
+      <div
+        className="flex min-h-screen items-center justify-center transition-colors"
+        style={{
+          backgroundColor: "var(--bg-primary)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <div className="text-lg font-semibold">Loading game...</div>
+      </div>
+    );
+  }
+
+  if (showGuestJoinModal && !isAuthenticated) {
+    return (
+      <div
+        className="min-h-screen"
+        style={{ backgroundColor: "var(--bg-primary)" }}
+      >
+        <GuestModeModal
+          isOpen={showGuestJoinModal}
+          onClose={() => router.push("/")}
+          mode="join"
+          gameId={gameId}
+        />
       </div>
     );
   }
 
   if (gameState.error || !gameState.game) {
     return (
-      <div className="min-h-screen bg-[#1a2035] flex items-center justify-center">
-        <div className="text-red-400 text-xl">
+      <div
+        className="flex min-h-screen items-center justify-center transition-colors"
+        style={{
+          backgroundColor: "var(--bg-primary)",
+          color: "var(--danger)",
+        }}
+      >
+        <div className="text-lg font-semibold">
           {gameState.error || "Game not found"}
         </div>
       </div>
@@ -340,449 +511,944 @@ export default function GameRoomPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#1a2035] text-white">
-      {/* Top Navigation Bar */}
-      <nav className="h-16 bg-[#0f1729] border-b border-gray-700 px-3 md:px-6 flex items-center justify-between">
-        {/* Left: Game Name with Dropdown */}
-        <div className="relative flex items-center gap-2 game-dropdown-container">
-          <button
-            onClick={() => setShowGameDropdown(!showGameDropdown)}
-            className="text-base md:text-xl font-semibold hover:text-blue-400 transition-colors flex items-center gap-2 truncate max-w-[150px] md:max-w-none"
-          >
-            <span className="truncate">{gameState.game.name}</span>
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+    <div
+      className="min-h-screen transition-colors"
+      style={{
+        background:
+          "radial-gradient(circle at top left, color-mix(in srgb, var(--primary) 12%, transparent) 0%, transparent 32%), radial-gradient(circle at bottom right, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 28%), var(--bg-primary)",
+        color: "var(--text-primary)",
+      }}
+    >
+      <nav
+        className="sticky top-0 z-40 border-b backdrop-blur supports-backdrop-filter:bg-(--overlay)"
+        style={{
+          backgroundColor:
+            "color-mix(in srgb, var(--bg-primary) 84%, transparent)",
+          borderColor: "var(--border-color)",
+        }}
+      >
+        <div className="flex min-h-16 items-center justify-between gap-4 px-4 py-3 lg:px-6">
+          <div className="game-dropdown-container relative min-w-0">
+            <button
+              onClick={() => setShowGameDropdown((prev) => !prev)}
+              className="flex min-w-0 items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:opacity-80"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </button>
-
-          {/* Dropdown Menu */}
-          {showGameDropdown && (
-            <div className="absolute top-full left-0 mt-2 w-56 bg-[#0f1729] border border-gray-700 rounded-lg shadow-xl z-50">
-              <button
-                onClick={() => {
-                  setShowGameDropdown(false);
-                  setShowSettingsModal(true);
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+                style={{
+                  background:
+                    "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
+                  color: "white",
                 }}
-                className="w-full px-4 py-3 text-left hover:bg-gray-700 transition-colors flex items-center gap-3 rounded-t-lg"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                <ListChecks className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h1 className="truncate text-base font-semibold md:text-lg">
+                    {gameState.game.name}
+                  </h1>
+                  <ChevronDown className="h-4 w-4 shrink-0" />
+                </div>
+                <p
+                  className="text-xs"
+                  style={{ color: "var(--text-tertiary)" }}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                  />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                  />
-                </svg>
-                Game Settings
-              </button>
-              <button
-                onClick={() => {
-                  setShowGameDropdown(false);
-                  setShowHistoryModal(true);
+                  {isConnected ? "Live room" : "Connecting"} ·{" "}
+                  {eligiblePlayers.length} eligible
+                </p>
+              </div>
+            </button>
+
+            {showGameDropdown && (
+              <div
+                className="absolute left-0 top-full mt-2 w-60 overflow-hidden rounded-lg border shadow-theme-strong"
+                style={{
+                  backgroundColor: "var(--surface-primary)",
+                  borderColor: "var(--border-color)",
                 }}
-                className="w-full px-4 py-3 text-left hover:bg-gray-700 transition-colors flex items-center gap-3 rounded-b-lg"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+                <button
+                  onClick={() => {
+                    setShowGameDropdown(false);
+                    setShowSettingsModal(true);
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:opacity-80"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                  />
-                </svg>
-                Voting History
-              </button>
-            </div>
-          )}
-        </div>
+                  <Settings className="h-4 w-4" />
+                  Game Settings
+                </button>
+                <button
+                  onClick={() => {
+                    setShowGameDropdown(false);
+                    setShowHistoryModal(true);
+                  }}
+                  className="flex w-full items-center gap-3 border-t px-4 py-3 text-left text-sm hover:opacity-80"
+                  style={{ borderColor: "var(--border-subtle)" }}
+                >
+                  <History className="h-4 w-4" />
+                  Voting History
+                </button>
+              </div>
+            )}
+          </div>
 
-        {/* Center: Timer Icon */}
-        <button
-          onClick={() => setShowTimerModal(true)}
-          className={`p-2 rounded-lg transition-colors relative ${
-            wsGameState?.timer?.is_running
-              ? "bg-blue-600 hover:bg-blue-700"
-              : "hover:bg-gray-700"
-          }`}
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          {wsGameState?.timer?.is_running && (
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
-          )}
-        </button>
-
-        {/* Timer Display (when running) */}
-        {wsGameState?.timer?.is_running &&
-          wsGameState.timer.remaining_seconds !== undefined && (
-            <div
-              className={`text-lg font-mono font-semibold ${timerAlert ? "text-red-400 animate-pulse" : ""}`}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowTimerModal(true)}
+              className="hidden items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium sm:flex"
+              style={{
+                backgroundColor: timerRunning
+                  ? "color-mix(in srgb, var(--primary) 18%, var(--surface-secondary))"
+                  : "var(--surface-secondary)",
+                borderColor: timerAlert
+                  ? "var(--warning)"
+                  : "var(--border-color)",
+                color: timerAlert ? "var(--warning)" : "var(--text-primary)",
+              }}
             >
-              {Math.floor(wsGameState.timer.remaining_seconds / 60)}:
-              {(wsGameState.timer.remaining_seconds % 60)
-                .toString()
-                .padStart(2, "0")}
-            </div>
-          )}
-
-        {/* Right: Invite & Issues Toggle */}
-        <div className="flex items-center gap-2 md:gap-3">
-          <button
-            onClick={() => setShowInviteModal(true)}
-            className="px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors font-medium text-sm md:text-base"
-          >
-            <span className="hidden sm:inline">Invite Players</span>
-            <span className="sm:hidden">Invite</span>
-          </button>
-          <button
-            onClick={() => setShowIssuesPanel(!showIssuesPanel)}
-            className={`p-2 rounded-lg transition-colors ${
-              showIssuesPanel ? "bg-blue-600" : "hover:bg-gray-700"
-            }`}
-            aria-label="Toggle issues panel"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+              <Clock3 className="h-4 w-4" />
+              <span className="font-mono">{formatTimer(timerRemaining)}</span>
+            </button>
+            <button
+              onClick={() => setShowInviteModal(true)}
+              className="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold"
+              style={primaryButtonStyle}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 6h16M4 12h16M4 18h16"
-              />
-            </svg>
-          </button>
+              <Share2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Invite</span>
+            </button>
+            <button
+              onClick={() => setShowIssuesPanel((prev) => !prev)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border"
+              style={{
+                backgroundColor: showIssuesPanel
+                  ? "var(--surface-accent)"
+                  : "var(--surface-secondary)",
+                borderColor: showIssuesPanel
+                  ? "var(--primary)"
+                  : "var(--border-color)",
+                color: showIssuesPanel
+                  ? "var(--primary)"
+                  : "var(--text-secondary)",
+              }}
+              aria-label="Toggle issues panel"
+              title="Toggle issues panel"
+            >
+              <ListChecks className="h-5 w-5" />
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
       </nav>
 
-      {/* Main Content Area */}
-      <div className="flex h-[calc(100vh-4rem)] relative">
-        {/* Game Area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Player Table Area */}
-          <div className="flex-1 flex items-center justify-center p-4 md:p-8 overflow-auto">
-            <div className="relative w-full max-w-5xl aspect-[16/10] min-h-[300px]">
-              {/* Countdown Animation */}
-              {showCountdown && countdownNumber > 0 && (
-                <div className="absolute inset-0 flex items-center justify-center z-20 bg-black bg-opacity-50">
-                  <div className="text-9xl font-bold text-white animate-pulse">
-                    {countdownNumber}
+      <main
+        className={`grid min-h-[calc(100vh-4rem)] ${
+          showIssuesPanel ? "lg:grid-cols-[minmax(0,1fr)_360px]" : "grid-cols-1"
+        }`}
+      >
+        <section className="flex min-w-0 flex-col">
+          <div className="grid flex-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:p-6">
+            <div className="min-w-0 space-y-4">
+              <div
+                className="rounded-lg border p-4 shadow-theme"
+                style={{
+                  backgroundColor:
+                    "color-mix(in srgb, var(--surface-primary) 88%, transparent)",
+                  borderColor: "var(--border-color)",
+                }}
+              >
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p
+                      className="text-xs uppercase tracking-[0.18em]"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      Current issue
+                    </p>
+                    <h2 className="mt-1 max-w-3xl truncate text-xl font-semibold">
+                      {activeIssue?.title || "Pick an issue to begin voting"}
+                    </h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="rounded-full border px-3 py-1 text-sm font-medium"
+                      style={{
+                        borderColor: isConnected
+                          ? "var(--success)"
+                          : "var(--warning)",
+                        color: isConnected
+                          ? "var(--success)"
+                          : "var(--warning)",
+                      }}
+                    >
+                      {isConnected ? "Connected" : "Connecting"}
+                    </span>
+                    <span
+                      className="rounded-full border px-3 py-1 text-sm font-medium"
+                      style={{
+                        backgroundColor: "var(--surface-secondary)",
+                        borderColor: "var(--border-color)",
+                        color: "var(--text-secondary)",
+                      }}
+                    >
+                      {votedCount}/{eligiblePlayers.length} voted
+                    </span>
                   </div>
                 </div>
-              )}
 
-              {/* Center Action Button */}
-              <div className="absolute inset-0 flex items-center justify-center z-10">
-                {gameState.votingPhase === VotingPhase.WAITING && (
-                  <div className="text-center">
-                    <button className="px-6 md:px-8 py-3 md:py-4 bg-blue-600 hover:bg-blue-700 rounded-xl text-lg md:text-xl font-semibold transition-colors">
-                      Pick your cards!
-                    </button>
-                    {!isConnected && (
-                      <p className="text-yellow-400 text-sm mt-2">
-                        Connecting to game...
-                      </p>
-                    )}
-                  </div>
-                )}
-                {gameState.votingPhase === VotingPhase.VOTING &&
-                  gameState.selectedCard && (
-                    <button
-                      onClick={handleRevealCards}
-                      className="px-6 md:px-8 py-3 md:py-4 bg-green-600 hover:bg-green-700 rounded-xl text-lg md:text-xl font-semibold transition-colors"
+                <div
+                  className="relative mx-auto aspect-video min-h-90 max-w-6xl overflow-hidden rounded-lg border p-6"
+                  style={{
+                    borderColor: "var(--border-subtle)",
+                    backgroundColor: "var(--bg-secondary)",
+                  }}
+                >
+                  <div
+                    className="absolute left-1/2 top-1/2 h-[54%] w-[66%] -translate-x-1/2 -translate-y-1/2 rounded-full border"
+                    style={{
+                      background:
+                        "radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--primary) 18%, var(--surface-accent)) 0%, var(--surface-secondary) 64%, var(--surface-primary) 100%)",
+                      borderColor: "var(--border-strong)",
+                      boxShadow:
+                        "inset 0 1px 0 color-mix(in srgb, white 12%, transparent), 0 28px 90px -60px var(--primary)",
+                    }}
+                  />
+
+                  {showCountdown && countdownNumber > 0 && (
+                    <div
+                      className="absolute inset-0 z-20 flex items-center justify-center"
+                      style={{
+                        backgroundColor:
+                          "color-mix(in srgb, var(--bg-primary) 18%, transparent)",
+                      }}
                     >
-                      Reveal cards
-                    </button>
+                      <div
+                        className="rounded-full border px-5 py-3 text-lg font-semibold shadow-theme-strong backdrop-blur"
+                        style={{
+                          borderColor: "var(--primary)",
+                          color: "var(--primary)",
+                          backgroundColor: "var(--surface-primary)",
+                        }}
+                      >
+                        Revealing in {countdownNumber}...
+                      </div>
+                    </div>
                   )}
-                {gameState.votingPhase === VotingPhase.REVEALED && (
-                  <div className="text-center space-y-4">
-                    {/* Voting Results */}
-                    {votingResults && (
-                      <div className="bg-[#0f1729] rounded-xl p-4 md:p-6 mb-4 max-w-md mx-auto">
-                        <h3 className="text-base md:text-lg font-semibold mb-4">
-                          Results
-                        </h3>
 
-                        {/* Vote Distribution Bar Chart */}
-                        <div className="space-y-2 mb-4">
-                          {Object.entries(votingResults.distribution).map(
+                  <div className="absolute inset-0 z-10 flex items-center justify-center p-6">
+                    {gameState.votingPhase === VotingPhase.REVEALED &&
+                    votingResults ? (
+                      <div
+                        className="w-full max-w-lg rounded-lg border p-4 text-center shadow-theme"
+                        style={{
+                          backgroundColor: "var(--surface-primary)",
+                          borderColor: "var(--border-color)",
+                        }}
+                      >
+                        <div className="mb-4 flex items-center justify-center gap-2">
+                          <BarChart3
+                            className="h-5 w-5"
+                            style={{ color: "var(--primary)" }}
+                          />
+                          <h3 className="text-lg font-semibold">
+                            Voting statistics
+                          </h3>
+                        </div>
+
+                        <div className="space-y-2">
+                          {Object.entries(resultDistribution).map(
                             ([value, count]) => (
                               <div
                                 key={value}
-                                className="flex items-center gap-3"
+                                className="grid grid-cols-[40px_1fr_28px] items-center gap-3 text-sm"
                               >
-                                <span className="w-8 md:w-12 text-right font-semibold text-sm md:text-base">
+                                <span className="text-right font-semibold">
                                   {value}
                                 </span>
-                                <div className="flex-1 bg-gray-700 rounded-full h-6 md:h-8 relative overflow-hidden">
+                                <div
+                                  className="h-2 overflow-hidden rounded-full"
+                                  style={{
+                                    backgroundColor: "var(--surface-tertiary)",
+                                  }}
+                                >
                                   <div
-                                    className="bg-blue-500 h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+                                    className="h-full rounded-full"
                                     style={{
-                                      width: `${(count / gameState.players.length) * 100}%`,
+                                      width: `${Math.max(
+                                        8,
+                                        (count /
+                                          Math.max(
+                                            1,
+                                            votingResults.total_voters,
+                                          )) *
+                                          100,
+                                      )}%`,
+                                      background:
+                                        "linear-gradient(90deg, var(--primary), var(--accent))",
                                     }}
-                                  >
-                                    <span className="text-sm font-semibold">
-                                      {count}
-                                    </span>
-                                  </div>
+                                  />
                                 </div>
+                                <span style={{ color: "var(--text-tertiary)" }}>
+                                  {count}
+                                </span>
                               </div>
                             ),
                           )}
                         </div>
 
-                        {/* Average */}
-                        {gameState.game?.show_average &&
-                          votingResults.average !== null && (
-                            <div className="text-center py-2 bg-gray-700 rounded-lg mb-2">
-                              <span className="text-sm text-gray-400">
-                                Average:{" "}
-                              </span>
-                              <span className="text-xl font-bold">
-                                {votingResults.average.toFixed(1)}
-                              </span>
-                            </div>
-                          )}
-
-                        {/* Agreement Meter */}
-                        <div className="text-center">
-                          <div className="inline-flex items-center gap-3 bg-gray-700 rounded-lg px-4 py-2">
-                            <span className="text-2xl">🤖</span>
-                            <div>
-                              <div className="text-sm text-gray-400">
-                                Agreement
-                              </div>
-                              <div className="text-lg font-bold">
-                                {votingResults.agreement}%
-                              </div>
-                            </div>
-                          </div>
-                          {votingResults.agreement === 100 && (
-                            <p className="text-green-400 text-sm mt-2">
-                              🎉 Yeah! You reached full consensus.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={handleStartNewVoting}
-                      className="px-6 md:px-8 py-3 md:py-4 bg-purple-600 hover:bg-purple-700 rounded-xl text-lg md:text-xl font-semibold transition-colors"
-                    >
-                      Start new voting
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Players arranged in oval */}
-              {gameState.players.map((player, index) => {
-                const angle = (index / gameState.players.length) * 2 * Math.PI;
-                const x = 50 + 40 * Math.cos(angle);
-                const y = 50 + 35 * Math.sin(angle);
-
-                return (
-                  <div
-                    key={player.id}
-                    className="absolute transform -translate-x-1/2 -translate-y-1/2"
-                    style={{ left: `${x}%`, top: `${y}%` }}
-                  >
-                    <div className="flex flex-col items-center gap-2">
-                      {/* Card with flip animation */}
-                      <div className="relative w-16 h-24 md:w-20 md:h-28 perspective-1000">
-                        <div
-                          className={`w-full h-full transition-transform duration-500 transform-style-3d ${
-                            gameState.votingPhase === VotingPhase.REVEALED &&
-                            player.has_voted
-                              ? "rotate-y-180"
-                              : ""
-                          }`}
-                        >
-                          {/* Card Front (face-down) */}
+                        <div className="mt-4 grid gap-2 sm:grid-cols-3">
                           <div
-                            className={`absolute inset-0 rounded-lg border-2 flex items-center justify-center text-2xl font-bold backface-hidden ${
-                              player.has_voted
-                                ? "bg-blue-600 border-blue-400"
-                                : "bg-gray-700 border-gray-500"
-                            }`}
+                            className="rounded-lg border p-3"
+                            style={{
+                              borderColor: "var(--border-subtle)",
+                              backgroundColor: "var(--surface-secondary)",
+                            }}
                           >
-                            {player.has_voted ? "🂠" : ""}
+                            <p
+                              className="text-xs"
+                              style={{ color: "var(--text-tertiary)" }}
+                            >
+                              Estimate
+                            </p>
+                            <p className="text-lg font-semibold">
+                              {displayedEstimate || "-"}
+                            </p>
                           </div>
-
-                          {/* Card Back (revealed value) */}
-                          {gameState.votingPhase === VotingPhase.REVEALED && (
-                            <div className="absolute inset-0 rounded-lg border-2 bg-green-600 border-green-400 flex items-center justify-center text-2xl font-bold backface-hidden rotate-y-180">
-                              {votingResults?.votes.find(
-                                (v) => v.user_id === player.id,
-                              )?.card_value || "?"}
+                          {gameState.game.show_average && (
+                            <div
+                              className="rounded-lg border p-3"
+                              style={{
+                                borderColor: "var(--border-subtle)",
+                                backgroundColor: "var(--surface-secondary)",
+                              }}
+                            >
+                              <p
+                                className="text-xs"
+                                style={{ color: "var(--text-tertiary)" }}
+                              >
+                                Average
+                              </p>
+                              <p className="text-lg font-semibold">
+                                {typeof votingResults.average === "number"
+                                  ? votingResults.average.toFixed(1)
+                                  : "-"}
+                              </p>
                             </div>
                           )}
+                          <div
+                            className="rounded-lg border p-3"
+                            style={{
+                              borderColor: "var(--border-subtle)",
+                              backgroundColor: "var(--surface-secondary)",
+                            }}
+                          >
+                            <p
+                              className="text-xs"
+                              style={{ color: "var(--text-tertiary)" }}
+                            >
+                              Agreement
+                            </p>
+                            <p className="text-lg font-semibold">
+                              {votingResults.agreement}%
+                            </p>
+                          </div>
                         </div>
+
+                        {currentUserIsFacilitator && activeIssue && (
+                          <div
+                            className="mt-4 rounded-lg border p-3 text-left"
+                            style={{
+                              backgroundColor: "var(--surface-secondary)",
+                              borderColor: "var(--border-subtle)",
+                            }}
+                          >
+                            <label
+                              className="mb-2 block text-xs font-medium"
+                              style={{ color: "var(--text-tertiary)" }}
+                            >
+                              Facilitator estimate
+                            </label>
+                            <div className="flex gap-2">
+                              <input
+                                value={customEstimate}
+                                onChange={(event) => {
+                                  setCustomEstimate(event.target.value);
+                                  setEstimateStatus(null);
+                                }}
+                                placeholder={
+                                  votingResults.final_estimate || "Calculated"
+                                }
+                                maxLength={10}
+                                className="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm"
+                              />
+                              <button
+                                onClick={handleSaveEstimate}
+                                className="rounded-lg px-3 py-2 text-sm font-semibold"
+                                style={primaryButtonStyle}
+                              >
+                                Save
+                              </button>
+                            </div>
+                            <p
+                              className="mt-2 text-xs"
+                              style={{ color: "var(--text-tertiary)" }}
+                            >
+                              Empty uses the calculated estimate.
+                              {estimateStatus ? ` ${estimateStatus}.` : ""}
+                            </p>
+                          </div>
+                        )}
+
+                        <button
+                          onClick={handlePickNextIssue}
+                          className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold"
+                          style={primaryButtonStyle}
+                        >
+                          Pick next issue
+                        </button>
                       </div>
-                      {/* Avatar & Name */}
-                      <div className="flex flex-col items-center">
-                        <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gray-600 flex items-center justify-center text-xs md:text-sm font-semibold">
-                          {player.display_name.charAt(0).toUpperCase()}
+                    ) : (
+                      <div className="max-w-md text-center">
+                        <div
+                          className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-lg border"
+                          style={{
+                            borderColor: "var(--border-color)",
+                            backgroundColor: "var(--surface-primary)",
+                            color: "var(--primary)",
+                          }}
+                        >
+                          <Users className="h-5 w-5" />
                         </div>
-                        <span className="text-xs md:text-sm mt-1 max-w-[80px] truncate">
-                          {player.display_name}
-                        </span>
-                        {player.is_facilitator && (
-                          <span className="text-xs text-yellow-400">★</span>
+                        <h3 className="text-xl font-semibold">
+                          {activeIssue
+                            ? allPlayersVoted
+                              ? gameState.game.auto_reveal
+                                ? "Revealing cards"
+                                : "Ready to reveal"
+                              : currentUserCanVote
+                                ? "Pick your card"
+                                : "Round in progress"
+                            : issueCounts.total === 0
+                              ? "Add your first issue"
+                              : "Choose an issue"}
+                        </h3>
+                        <p
+                          className="mt-2 text-sm"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          {activeIssue
+                            ? currentUserCanVote
+                              ? `${votedCount}/${eligiblePlayers.length} eligible players have voted.`
+                              : "You joined after this round started. You can vote on the next issue."
+                            : "Select Vote this issue in the sidebar to open the table for cards."}
+                        </p>
+                        {canRevealCards && (
+                          <button
+                            onClick={handleRevealCards}
+                            className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold"
+                            style={primaryButtonStyle}
+                          >
+                            Reveal cards
+                          </button>
                         )}
                       </div>
-                    </div>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* Card Deck Selector */}
-          <div className="h-28 md:h-32 bg-[#0f1729] border-t border-gray-700 px-4 md:px-8 flex items-center gap-2 md:gap-3 overflow-x-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
-            <div className="flex gap-2 md:gap-3 mx-auto">
-              {gameState.game.deck.values.map((value) => (
-                <button
-                  key={value}
-                  onClick={() => handleCardSelect(value)}
-                  className={`flex-shrink-0 w-14 h-20 md:w-16 md:h-24 rounded-lg border-2 flex items-center justify-center text-lg md:text-xl font-bold transition-all hover:scale-105 active:scale-95 ${
-                    gameState.selectedCard === value
-                      ? "bg-blue-600 border-blue-400 scale-105"
-                      : "bg-gray-700 border-gray-500 hover:border-gray-400"
-                  }`}
-                >
-                  {value}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
+                  {gameState.players.map((player, index) => {
+                    const angle =
+                      (index / Math.max(1, gameState.players.length)) *
+                      2 *
+                      Math.PI;
+                    const x = 50 + 42 * Math.cos(angle);
+                    const y = 50 + 36 * Math.sin(angle);
+                    const revealedVote = votingResults?.votes.find(
+                      (vote) => vote.user_id === player.id,
+                    );
+                    const isCurrentUser = player.id === currentUserId;
 
-        {/* Issues Panel (Right Sidebar on desktop, overlay on mobile) */}
-        {showIssuesPanel && (
-          <>
-            {/* Mobile overlay backdrop */}
-            <div
-              className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
-              onClick={() => setShowIssuesPanel(false)}
-            />
-
-            {/* Issues Panel */}
-            <div className="fixed md:relative right-0 top-0 bottom-0 w-80 md:w-80 bg-[#0f1729] border-l border-gray-700 flex flex-col z-50 md:z-auto">
-              {/* Panel Header */}
-              <div className="h-16 px-4 flex items-center justify-between border-b border-gray-700">
-                <h2 className="text-lg font-semibold">Issues</h2>
-                <div className="flex items-center gap-2">
-                  <button className="p-2 hover:bg-gray-700 rounded transition-colors">
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 4v16m8-8H4"
-                      />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setShowIssuesPanel(false)}
-                    className="p-2 hover:bg-gray-700 rounded transition-colors"
-                  >
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
+                    return (
+                      <div
+                        key={player.id}
+                        className="absolute z-10 -translate-x-1/2 -translate-y-1/2"
+                        style={{ left: `${x}%`, top: `${y}%` }}
+                      >
+                        <div className="flex flex-col items-center gap-2">
+                          <div
+                            className="flex h-20 w-14 items-center justify-center rounded-lg border text-lg font-bold shadow-theme transition-transform"
+                            style={{
+                              backgroundColor: revealedVote
+                                ? "color-mix(in srgb, var(--success) 18%, var(--surface-primary))"
+                                : player.has_voted
+                                  ? "color-mix(in srgb, var(--primary) 18%, var(--surface-primary))"
+                                  : "var(--surface-primary)",
+                              borderColor: revealedVote
+                                ? "var(--success)"
+                                : player.has_voted
+                                  ? "var(--primary)"
+                                  : "var(--border-color)",
+                              color: revealedVote
+                                ? "var(--success)"
+                                : "var(--text-primary)",
+                            }}
+                          >
+                            {revealedVote?.card_value ||
+                              (player.has_voted ? (
+                                <Check className="h-5 w-5" />
+                              ) : (
+                                ""
+                              ))}
+                          </div>
+                          <div
+                            className="flex max-w-32 flex-col items-center rounded-lg border px-2 py-1 text-center shadow-theme"
+                            style={{
+                              backgroundColor: "var(--surface-primary)",
+                              borderColor: isCurrentUser
+                                ? "var(--primary)"
+                                : "var(--border-color)",
+                            }}
+                          >
+                            <span className="max-w-24 truncate text-xs font-semibold">
+                              {player.display_name}
+                            </span>
+                            <span
+                              className="text-[10px]"
+                              style={{ color: "var(--text-tertiary)" }}
+                            >
+                              {player.is_facilitator
+                                ? "Facilitator"
+                                : player.can_vote === false
+                                  ? "Next round"
+                                  : player.has_voted
+                                    ? "Voted"
+                                    : "Waiting"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Issues List */}
-              <div className="flex-1 overflow-y-auto p-4">
-                {gameState.issues.length === 0 ? (
-                  <div className="text-center text-gray-400 mt-8">
-                    <p>No issues yet</p>
-                    <p className="text-sm mt-2">
-                      Click + to add your first issue
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {gameState.issues.map((issue) => (
-                      <div
-                        key={issue.id}
-                        className="p-3 bg-gray-700 rounded-lg hover:bg-gray-600 cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-start justify-between">
-                          <span className="text-sm">{issue.title}</span>
-                          <span className="text-xs text-gray-400">
-                            {issue.status === "voted" && issue.final_estimate}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div
+                className="rounded-lg border p-3 shadow-theme"
+                style={{
+                  backgroundColor: "var(--surface-primary)",
+                  borderColor: "var(--border-color)",
+                }}
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="text-sm font-semibold">Voting deck</p>
+                  <span
+                    className="text-xs"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    {gameState.game.deck.name}
+                  </span>
+                </div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {gameState.game.deck.values.map((value) => (
+                    <button
+                      key={value}
+                      onClick={() => handleCardSelect(value)}
+                      disabled={!canPickCards}
+                      title={
+                        canPickCards
+                          ? `Vote ${value}`
+                          : "Pick an issue before voting"
+                      }
+                      className="flex h-16 min-w-12 shrink-0 items-center justify-center rounded-lg border text-base font-bold transition-transform enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+                      style={{
+                        backgroundColor:
+                          gameState.selectedCard === value
+                            ? "var(--surface-accent)"
+                            : "var(--surface-secondary)",
+                        borderColor:
+                          gameState.selectedCard === value
+                            ? "var(--primary)"
+                            : "var(--border-color)",
+                        color:
+                          gameState.selectedCard === value
+                            ? "var(--primary)"
+                            : "var(--text-primary)",
+                      }}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </>
-        )}
-      </div>
 
-      {/* Modals */}
+            <aside className="space-y-4">
+              <div
+                className="rounded-lg border p-4 shadow-theme"
+                style={{
+                  backgroundColor: "var(--surface-primary)",
+                  borderColor: "var(--border-color)",
+                }}
+              >
+                <div className="mb-3 flex items-center gap-2">
+                  <Trophy
+                    className="h-4 w-4"
+                    style={{ color: "var(--primary)" }}
+                  />
+                  <h3 className="font-semibold">Round stats</h3>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <p
+                      className="text-xs"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      Fastest voter
+                    </p>
+                    <p className="font-semibold">
+                      {votingResults?.fastest_voter?.display_name || "-"}
+                      {votingResults?.fastest_voter && (
+                        <span
+                          className="ml-2 text-sm"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          {formatSpeed(votingResults.fastest_voter.seconds)}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p
+                      className="text-xs"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      Slowest voter
+                    </p>
+                    <p className="font-semibold">
+                      {votingResults?.slowest_voter?.display_name || "-"}
+                      {votingResults?.slowest_voter && (
+                        <span
+                          className="ml-2 text-sm"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          {formatSpeed(votingResults.slowest_voter.seconds)}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <p
+                      className="text-xs"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      Your vote
+                    </p>
+                    <p className="font-semibold">
+                      {currentVote?.card_value || gameState.selectedCard || "-"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className="rounded-lg border p-4 shadow-theme"
+                style={{
+                  backgroundColor: "var(--surface-primary)",
+                  borderColor: "var(--border-color)",
+                }}
+              >
+                <div className="mb-3 flex items-center gap-2">
+                  <Clock3
+                    className="h-4 w-4"
+                    style={{
+                      color: timerAlert ? "var(--warning)" : "var(--primary)",
+                    }}
+                  />
+                  <h3 className="font-semibold">Timer</h3>
+                </div>
+                <div className="font-mono text-4xl font-bold">
+                  {formatTimer(timerRemaining)}
+                </div>
+                <p
+                  className="mt-1 text-sm"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  {timerRunning
+                    ? "Running"
+                    : timerRemaining
+                      ? "Paused"
+                      : "Not started"}
+                </p>
+                <button
+                  onClick={() => setShowTimerModal(true)}
+                  className="mt-4 w-full rounded-lg border px-3 py-2 text-sm font-semibold"
+                  style={{
+                    borderColor: "var(--border-color)",
+                    backgroundColor: "var(--surface-secondary)",
+                  }}
+                >
+                  Timer controls
+                </button>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        {showIssuesPanel && (
+          <aside
+            className="fixed inset-y-0 right-0 z-50 flex w-[min(92vw,380px)] flex-col border-l lg:static lg:z-auto lg:w-auto"
+            style={{
+              backgroundColor: "var(--bg-secondary)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            <div
+              className="flex min-h-16 items-center justify-between border-b px-4"
+              style={{ borderColor: "var(--border-color)" }}
+            >
+              <div>
+                <h2 className="text-lg font-semibold">Issues</h2>
+                <p
+                  className="text-xs"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  {issueCounts.voted}/{issueCounts.total} completed
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    if (!canManageIssues) {
+                      setActionError(
+                        "Only the facilitator can manage issues in this game",
+                      );
+                      return;
+                    }
+
+                    setShowAddIssueForm((prev) => !prev);
+                    setActionError(null);
+                  }}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border"
+                  style={{
+                    backgroundColor: canManageIssues
+                      ? "var(--surface-secondary)"
+                      : "var(--surface-tertiary)",
+                    borderColor: "var(--border-color)",
+                    color: canManageIssues
+                      ? "var(--text-primary)"
+                      : "var(--text-muted)",
+                  }}
+                  aria-label="Add issue"
+                  title={
+                    canManageIssues
+                      ? "Add issue"
+                      : "Only the facilitator can manage issues"
+                  }
+                >
+                  <Plus className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => setShowIssuesPanel(false)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border"
+                  style={{
+                    backgroundColor: "var(--surface-secondary)",
+                    borderColor: "var(--border-color)",
+                  }}
+                  aria-label="Close issues"
+                  title="Close issues"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {!canManageIssues && (
+                <div
+                  className="mb-3 rounded-lg border px-3 py-2 text-sm"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--warning) 12%, transparent)",
+                    borderColor: "var(--warning)",
+                    color: "var(--warning)",
+                  }}
+                >
+                  Only the facilitator can add issues or start issue voting.
+                </div>
+              )}
+
+              {actionError && (
+                <div
+                  className="mb-3 rounded-lg border px-3 py-2 text-sm"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--danger) 12%, transparent)",
+                    borderColor: "var(--danger)",
+                    color: "var(--danger)",
+                  }}
+                >
+                  {actionError}
+                </div>
+              )}
+
+              {showAddIssueForm && (
+                <form onSubmit={handleAddIssue} className="mb-4 space-y-3">
+                  <textarea
+                    value={newIssueTitle}
+                    onChange={(event) => setNewIssueTitle(event.target.value)}
+                    maxLength={500}
+                    rows={4}
+                    autoFocus
+                    placeholder="Write an issue or user story"
+                    className="w-full resize-none rounded-lg px-3 py-2 text-sm"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={
+                        !newIssueTitle.trim() ||
+                        !isConnected ||
+                        !canManageIssues
+                      }
+                      className="flex-1 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                      style={primaryButtonStyle}
+                    >
+                      Add issue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddIssueForm(false);
+                        setNewIssueTitle("");
+                      }}
+                      className="rounded-lg border px-3 py-2 text-sm"
+                      style={{
+                        backgroundColor: "var(--surface-secondary)",
+                        borderColor: "var(--border-color)",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {gameState.issues.length === 0 ? (
+                <div
+                  className="mt-8 rounded-lg border p-5 text-center"
+                  style={{
+                    backgroundColor: "var(--surface-primary)",
+                    borderColor: "var(--border-color)",
+                    color: "var(--text-secondary)",
+                  }}
+                >
+                  <ListChecks className="mx-auto mb-3 h-6 w-6" />
+                  <p className="font-medium">No issues yet</p>
+                  <p className="mt-1 text-sm">
+                    Use the add button to build the voting queue.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {gameState.issues.map((issue) => {
+                    const isActiveIssue = activeIssue?.id === issue.id;
+                    const isRoundInProgress = Boolean(
+                      activeRound && !activeRound.is_revealed,
+                    );
+                    const isIssueVoted = issue.status === "voted";
+                    const canStartIssueVote =
+                      isConnected &&
+                      canManageIssues &&
+                      !isIssueVoted &&
+                      !isRoundInProgress;
+
+                    return (
+                      <div
+                        key={issue.id}
+                        className="rounded-lg border p-4 shadow-theme"
+                        style={{
+                          backgroundColor: isActiveIssue
+                            ? "var(--surface-accent)"
+                            : "var(--surface-primary)",
+                          borderColor: isActiveIssue
+                            ? "var(--primary)"
+                            : "var(--border-color)",
+                        }}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <h3 className="min-w-0 text-sm font-semibold leading-5">
+                            {issue.title}
+                          </h3>
+                          <span
+                            className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize"
+                            style={{
+                              backgroundColor:
+                                issue.status === "voting"
+                                  ? "color-mix(in srgb, var(--primary) 16%, transparent)"
+                                  : isIssueVoted
+                                    ? "color-mix(in srgb, var(--success) 16%, transparent)"
+                                    : "var(--surface-tertiary)",
+                              color:
+                                issue.status === "voting"
+                                  ? "var(--primary)"
+                                  : isIssueVoted
+                                    ? "var(--success)"
+                                    : "var(--text-secondary)",
+                            }}
+                          >
+                            {issue.status}
+                          </span>
+                        </div>
+
+                        {isIssueVoted && (
+                          <div
+                            className="mt-3 rounded-lg border px-3 py-2 text-sm"
+                            style={{
+                              backgroundColor: "var(--surface-secondary)",
+                              borderColor: "var(--border-subtle)",
+                            }}
+                          >
+                            Estimate:{" "}
+                            <span className="font-semibold">
+                              {issue.final_estimate || "No consensus"}
+                            </span>
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleVoteIssue(issue)}
+                          disabled={!canStartIssueVote}
+                          className="mt-3 w-full rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                          style={
+                            canStartIssueVote
+                              ? primaryButtonStyle
+                              : {
+                                  backgroundColor: "var(--surface-tertiary)",
+                                  color: "var(--text-muted)",
+                                }
+                          }
+                        >
+                          {isIssueVoted
+                            ? "Voted"
+                            : isActiveIssue && isRoundInProgress
+                              ? "Voting now"
+                              : !canManageIssues
+                                ? "Facilitator only"
+                                : isRoundInProgress
+                                  ? "Finish current issue"
+                                  : "Vote this issue"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
+      </main>
+
       {showInviteModal && (
         <InviteModal
           gameId={gameId}
@@ -790,7 +1456,6 @@ export default function GameRoomPage() {
         />
       )}
 
-      {/* Game Settings Modal */}
       <GameSettingsModal
         isOpen={showSettingsModal}
         onClose={() => setShowSettingsModal(false)}
@@ -801,20 +1466,18 @@ export default function GameRoomPage() {
         onTransferFacilitator={transferFacilitator}
       />
 
-      {/* Voting History Modal */}
       <VotingHistory
         gameId={gameId}
         isOpen={showHistoryModal}
         onClose={() => setShowHistoryModal(false)}
       />
 
-      {/* Timer Modal */}
       <Timer
         isOpen={showTimerModal}
         onClose={() => setShowTimerModal(false)}
-        remainingSeconds={wsGameState?.timer?.remaining_seconds ?? null}
-        isRunning={wsGameState?.timer?.is_running ?? false}
-        onStart={(durationSeconds) => {
+        remainingSeconds={timerRemaining}
+        isRunning={timerRunning}
+        onStart={(durationSeconds: number) => {
           startTimer(durationSeconds);
           setShowTimerModal(false);
         }}

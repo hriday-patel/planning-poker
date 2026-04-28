@@ -20,11 +20,13 @@ export interface LeaveGamePayload {
 }
 
 export interface SubmitVotePayload {
+  game_id?: string;
   round_id: string;
   card_value: string;
 }
 
 export interface RevealCardsPayload {
+  game_id?: string;
   round_id: string;
 }
 
@@ -109,13 +111,26 @@ export interface VoteSubmittedPayload {
 }
 
 export interface CardsRevealedPayload {
+  round_id: string;
+  issue_id: string | null;
   votes: Array<{
     user_id: string;
     card_value: string;
+    submitted_at?: string | null;
   }>;
+  distribution: Record<string, number>;
   average: number | null;
   agreement: number; // 0-100 percentage
   total_voters: number;
+  final_estimate: string | null;
+  fastest_voter: VotingSpeedStat | null;
+  slowest_voter: VotingSpeedStat | null;
+}
+
+export interface VotingSpeedStat {
+  user_id: string;
+  display_name: string;
+  seconds: number;
 }
 
 export interface NewRoundStartedPayload {
@@ -201,6 +216,7 @@ export interface GameStatePayload {
       user_id: string;
       has_voted: boolean;
       card_value: string | null; // null until revealed
+      can_vote: boolean;
     }>;
     is_revealed: boolean;
   } | null;
@@ -285,6 +301,8 @@ export interface RoomState {
     id: string;
     issue_id: string | null;
     votes: Map<string, string>; // user_id -> card_value
+    vote_times: Map<string, Date>;
+    eligible_voter_ids: Set<string>;
     is_revealed: boolean;
     started_at: Date;
   } | null;

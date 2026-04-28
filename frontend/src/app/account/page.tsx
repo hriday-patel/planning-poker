@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import EditProfileModal from "@/components/EditProfileModal";
+import { apiFetch } from "@/lib/api";
 
 interface User {
   id: string;
@@ -24,11 +25,7 @@ export default function AccountPage() {
 
   const fetchUserData = async () => {
     try {
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
-      const response = await fetch(`${appUrl}/api/v1/auth/me`, {
-        credentials: "include",
-      });
+      const response = await apiFetch("/api/v1/auth/me");
 
       if (response.ok) {
         const data = await response.json();

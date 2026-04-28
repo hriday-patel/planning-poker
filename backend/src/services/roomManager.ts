@@ -11,6 +11,14 @@ import { getGameDetails } from "./gameService";
 import { getGameIssues } from "./issueService";
 import { findUserById } from "./userService";
 
+const parseCardValue = (value: string): number | null => {
+  if (value === "½") return 0.5;
+  if (value === "¼") return 0.25;
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+};
+
 /**
  * In-memory storage for active game rooms
  */
@@ -151,11 +159,16 @@ export const startVotingRound = (
   issueId: string | null,
 ): void => {
   const room = getRoom(gameId);
+  const eligibleVoterIds = Array.from(room.players.values())
+    .filter((player) => !player.is_spectator)
+    .map((player) => player.user_id);
 
   room.current_round = {
     id: roundId,
     issue_id: issueId,
     votes: new Map(),
+    vote_times: new Map(),
+    eligible_voter_ids: new Set(eligibleVoterIds),
     is_revealed: false,
     started_at: new Date(),
   };
@@ -176,10 +189,32 @@ export const submitVote = (
     throw new Error("No active voting round");
   }
 
+  if (!room.current_round.issue_id) {
+    throw new Error("Pick an issue before voting");
+  }
+
+  const player = room.players.get(userId);
+  if (!player) {
+    throw new Error("Player is not in this room");
+  }
+
+  if (player.is_spectator) {
+    throw new Error("Spectators cannot vote");
+  }
+
+  if (!room.current_round.eligible_voter_ids.has(userId)) {
+    throw new Error(
+      "You joined after this round started. Wait for the next issue.",
+    );
+  }
+
   if (room.current_round.is_revealed) {
     throw new Error("Cannot vote after cards have been revealed");
   }
 
+  if (!room.current_round.vote_times.has(userId)) {
+    room.current_round.vote_times.set(userId, new Date());
+  }
   room.current_round.votes.set(userId, cardValue);
   logger.info(`Vote submitted by ${userId} in room ${gameId}`);
 };
@@ -193,6 +228,10 @@ export const revealCards = (gameId: string): Map<string, string> => {
     throw new Error("No active voting round");
   }
 
+  if (!room.current_round.issue_id) {
+    throw new Error("Pick an issue before revealing cards");
+  }
+
   room.current_round.is_revealed = true;
   logger.info(`Cards revealed in room ${gameId}`);
 
@@ -204,16 +243,17 @@ export const revealCards = (gameId: string): Map<string, string> => {
  */
 export const haveAllPlayersVoted = (gameId: string): boolean => {
   const room = rooms.get(gameId);
-  if (!room || !room.current_round) return false;
+  if (!room || !room.current_round || !room.current_round.issue_id) {
+    return false;
+  }
 
-  const nonSpectatorPlayers = Array.from(room.players.values()).filter(
-    (p) => !p.is_spectator,
+  const eligibleVoterIds = Array.from(room.current_round.eligible_voter_ids);
+
+  if (eligibleVoterIds.length === 0) return false;
+
+  return eligibleVoterIds.every((userId) =>
+    room.current_round!.votes.has(userId),
   );
-
-  if (nonSpectatorPlayers.length === 0) return false;
-
-  const votedCount = room.current_round.votes.size;
-  return votedCount === nonSpectatorPlayers.length;
 };
 
 /**
@@ -229,13 +269,11 @@ export const calculateVotingResults = (gameId: string) => {
   const numericVotes: number[] = [];
   const voteCounts: { [key: string]: number } = {};
 
-  // Count votes and extract numeric values
   votes.forEach(([_userId, value]) => {
     voteCounts[value] = (voteCounts[value] || 0) + 1;
 
-    // Try to parse as number for average calculation
-    const numValue = parseFloat(value);
-    if (!isNaN(numValue)) {
+    const numValue = parseCardValue(value);
+    if (numValue !== null) {
       numericVotes.push(numValue);
     }
   });
@@ -254,11 +292,66 @@ export const calculateVotingResults = (gameId: string) => {
     agreement = Math.round((maxCount / votes.length) * 100);
   }
 
+  const sortedVoteCounts = Object.entries(voteCounts).sort(
+    ([, firstCount], [, secondCount]) => secondCount - firstCount,
+  );
+  const finalEstimate = (() => {
+    if (average !== null) {
+      return String(Math.round(average));
+    }
+
+    if (sortedVoteCounts.length === 0) {
+      return null;
+    }
+
+    return sortedVoteCounts[0][0];
+  })();
+
+  const voteSpeedStats = votes
+    .map(([user_id]) => {
+      const submittedAt = room.current_round!.vote_times.get(user_id);
+      const player = room.players.get(user_id);
+
+      if (!submittedAt || !player) {
+        return null;
+      }
+
+      return {
+        user_id,
+        display_name: player.display_name,
+        seconds:
+          Math.round(
+            ((submittedAt.getTime() -
+              room.current_round!.started_at.getTime()) /
+              1000) *
+              10,
+          ) / 10,
+      };
+    })
+    .filter(
+      (
+        stat,
+      ): stat is { user_id: string; display_name: string; seconds: number } =>
+        stat !== null,
+    )
+    .sort((first, second) => first.seconds - second.seconds);
+
   return {
-    votes: votes.map(([user_id, card_value]) => ({ user_id, card_value })),
+    round_id: room.current_round.id,
+    issue_id: room.current_round.issue_id,
+    votes: votes.map(([user_id, card_value]) => ({
+      user_id,
+      card_value,
+      submitted_at:
+        room.current_round!.vote_times.get(user_id)?.toISOString() || null,
+    })),
+    distribution: voteCounts,
     average,
     agreement,
     total_voters: votes.length,
+    final_estimate: finalEstimate,
+    fastest_voter: voteSpeedStats[0] || null,
+    slowest_voter: voteSpeedStats[voteSpeedStats.length - 1] || null,
   };
 };
 
@@ -384,10 +477,13 @@ export const getRoomState = async (gameId: string) => {
   if (room.current_round) {
     const votes = Array.from(room.players.keys()).map((userId) => ({
       user_id: userId,
-      has_voted: room.current_round!.votes.has(userId),
+      has_voted:
+        room.current_round!.eligible_voter_ids.has(userId) &&
+        room.current_round!.votes.has(userId),
       card_value: room.current_round!.is_revealed
         ? room.current_round!.votes.get(userId) || null
         : null,
+      can_vote: room.current_round!.eligible_voter_ids.has(userId),
     }));
 
     currentRound = {
@@ -403,6 +499,13 @@ export const getRoomState = async (gameId: string) => {
     players,
     issues,
     current_round: currentRound,
+    timer: room.timer
+      ? {
+          duration_seconds: room.timer.duration_seconds,
+          remaining_seconds: room.timer.remaining_seconds,
+          is_running: room.timer.is_running,
+        }
+      : null,
   };
 };
 

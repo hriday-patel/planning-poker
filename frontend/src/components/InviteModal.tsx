@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Check, Copy, Link2, Mail, Users, X } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 interface InviteModalProps {
   gameId: string;
@@ -12,6 +14,14 @@ interface InviteResponse {
   expiresAt: string;
   tokenId: string;
 }
+
+const primaryButtonStyle = {
+  background:
+    "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
+  color: "white",
+  boxShadow:
+    "0 16px 40px -24px color-mix(in srgb, var(--primary) 70%, transparent)",
+} as const;
 
 export default function InviteModal({ gameId, onClose }: InviteModalProps) {
   const [copied, setCopied] = useState(false);
@@ -25,16 +35,9 @@ export default function InviteModal({ gameId, onClose }: InviteModalProps) {
         setIsLoading(true);
         setError(null);
 
-        const appUrl =
-          process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
-
-        const response = await fetch(
-          `${appUrl}/api/v1/auth/invite-links/${gameId}`,
-          {
-            method: "POST",
-            credentials: "include",
-          },
-        );
+        const response = await apiFetch(`/api/v1/auth/invite-links/${gameId}`, {
+          method: "POST",
+        });
 
         const data = await response.json().catch(() => null);
 
@@ -52,229 +55,213 @@ export default function InviteModal({ gameId, onClose }: InviteModalProps) {
       }
     };
 
-    createInvite();
+    void createInvite();
   }, [gameId]);
 
   const handleCopyLink = async () => {
-    if (!invite?.inviteUrl) {
-      return;
-    }
+    if (!invite?.inviteUrl) return;
 
     try {
       await navigator.clipboard.writeText(invite.inviteUrl);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch (_err) {
+      setError("Could not copy invite link");
     }
   };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "var(--overlay)" }}
+      style={{ backgroundColor: "var(--bg-primary)" }}
     >
       <div
-        className="w-full max-w-md rounded-[28px] border p-6"
+        className="w-full max-w-xl overflow-hidden rounded-lg border shadow-theme-strong"
         style={{
-          backgroundColor: "var(--surface-elevated)",
+          backgroundColor: "var(--surface-primary)",
           borderColor: "var(--border-color)",
           color: "var(--text-primary)",
-          boxShadow:
-            "0 40px 90px -48px color-mix(in srgb, var(--text-primary) 30%, transparent)",
         }}
       >
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-xl font-semibold">
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        <div
+          className="flex items-center justify-between border-b p-5"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-lg"
+              style={{
+                backgroundColor: "var(--surface-accent)",
+                color: "var(--primary)",
+              }}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-              />
-            </svg>
-            Invite Players
-          </h2>
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Invite Players</h2>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                Share a single-use game link
+              </p>
+            </div>
+          </div>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 transition-colors hover:opacity-80"
-            style={{ color: "var(--text-secondary)" }}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border"
+            style={{
+              backgroundColor: "var(--surface-secondary)",
+              borderColor: "var(--border-color)",
+            }}
+            aria-label="Close invite modal"
           >
-            <svg
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {isLoading ? (
-          <div
-            className="rounded-2xl border p-6 text-center"
-            style={{
-              backgroundColor: "var(--surface-primary)",
-              borderColor: "var(--border-muted)",
-              color: "var(--text-secondary)",
-            }}
-          >
-            Generating a secure invite URL...
-          </div>
-        ) : error ? (
-          <div
-            className="rounded-2xl border p-4 text-sm"
-            style={{
-              backgroundColor:
-                "color-mix(in srgb, var(--danger) 12%, transparent)",
-              borderColor: "color-mix(in srgb, var(--danger) 36%, transparent)",
-              color: "var(--danger)",
-            }}
-          >
-            {error}
-          </div>
-        ) : invite ? (
-          <div className="space-y-4">
-            <div>
-              <label
-                className="mb-2 block text-sm"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                Share this invite URL:
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={invite.inviteUrl}
-                  className="flex-1 rounded-xl border px-3 py-2 text-sm outline-none"
-                  style={{
-                    backgroundColor: "var(--surface-primary)",
-                    borderColor: "var(--border-muted)",
-                    color: "var(--text-primary)",
-                  }}
-                  onClick={(e) => e.currentTarget.select()}
-                />
-                <button
-                  onClick={handleCopyLink}
-                  className="rounded-xl px-4 py-2 font-medium text-white transition-colors"
-                  style={{
-                    backgroundColor: copied
-                      ? "var(--success)"
-                      : "var(--primary)",
-                  }}
-                >
-                  {copied ? "Copied!" : "Copy"}
-                </button>
-              </div>
-            </div>
-
+        <div className="p-5">
+          {isLoading ? (
             <div
-              className="space-y-2 rounded-2xl border p-4 text-sm"
+              className="rounded-lg border p-5 text-center text-sm"
               style={{
-                backgroundColor: "var(--surface-primary)",
-                borderColor: "var(--border-muted)",
+                backgroundColor: "var(--surface-secondary)",
+                borderColor: "var(--border-subtle)",
                 color: "var(--text-secondary)",
               }}
             >
-              <p>
-                <span
-                  className="font-medium"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  Expires:
-                </span>{" "}
-                {new Date(invite.expiresAt).toLocaleString()}
-              </p>
-              <p>
-                <span
-                  className="font-medium"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  Usage:
-                </span>{" "}
-                Single use after a recipient joins.
-              </p>
-              <p>
-                <span
-                  className="font-medium"
-                  style={{ color: "var(--text-primary)" }}
-                >
-                  Sharing:
-                </span>{" "}
-                Send via email, chat, or any approved messaging platform.
-              </p>
+              Generating invite link...
             </div>
-
+          ) : error ? (
             <div
-              className="rounded-2xl border p-4"
+              className="rounded-lg border p-4 text-sm"
               style={{
-                backgroundColor: "var(--surface-secondary)",
-                borderColor: "var(--border-color)",
+                backgroundColor:
+                  "color-mix(in srgb, var(--danger) 12%, transparent)",
+                borderColor: "var(--danger)",
+                color: "var(--danger)",
               }}
             >
-              <div className="flex items-start gap-3">
-                <svg
-                  className="mt-0.5 h-5 w-5 flex-shrink-0"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                  style={{ color: "var(--primary)" }}
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <div
-                  className="text-sm"
+              {error}
+            </div>
+          ) : invite ? (
+            <div className="space-y-4">
+              <div
+                className="rounded-lg border p-4"
+                style={{
+                  backgroundColor: "var(--surface-secondary)",
+                  borderColor: "var(--border-subtle)",
+                }}
+              >
+                <label
+                  className="mb-2 flex items-center gap-2 text-sm font-medium"
                   style={{ color: "var(--text-secondary)" }}
                 >
-                  <p
-                    className="mb-1 font-medium"
-                    style={{ color: "var(--text-primary)" }}
+                  <Link2 className="h-4 w-4" />
+                  Invite URL
+                </label>
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <input
+                    type="text"
+                    readOnly
+                    value={invite.inviteUrl}
+                    className="min-w-0 rounded-lg px-3 py-3 text-sm"
+                    onClick={(event) => event.currentTarget.select()}
+                  />
+                  <button
+                    onClick={handleCopyLink}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-semibold"
+                    style={
+                      copied
+                        ? { backgroundColor: "var(--success)", color: "white" }
+                        : primaryButtonStyle
+                    }
                   >
-                    How it works:
-                  </p>
-                  <ol
-                    className="list-inside list-decimal space-y-1"
+                    {copied ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                    {copied ? "Copied" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div
+                  className="rounded-lg border p-4"
+                  style={{
+                    backgroundColor: "var(--surface-secondary)",
+                    borderColor: "var(--border-subtle)",
+                  }}
+                >
+                  <p
+                    className="text-xs"
                     style={{ color: "var(--text-tertiary)" }}
                   >
-                    <li>Share the invite URL with the participant</li>
-                    <li>
-                      They sign in with IBM W3ID if not already authenticated
-                    </li>
-                    <li>The validated token grants access to the game</li>
-                  </ol>
+                    Expires
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">
+                    {new Date(invite.expiresAt).toLocaleString()}
+                  </p>
+                </div>
+                <div
+                  className="rounded-lg border p-4"
+                  style={{
+                    backgroundColor: "var(--surface-secondary)",
+                    borderColor: "var(--border-subtle)",
+                  }}
+                >
+                  <p
+                    className="text-xs"
+                    style={{ color: "var(--text-tertiary)" }}
+                  >
+                    Access
+                  </p>
+                  <p className="mt-1 text-sm font-semibold">
+                    Single use after join
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className="rounded-lg border p-4"
+                style={{
+                  backgroundColor: "var(--surface-accent)",
+                  borderColor: "var(--border-color)",
+                }}
+              >
+                <div className="flex gap-3">
+                  <Mail
+                    className="mt-0.5 h-5 w-5"
+                    style={{ color: "var(--primary)" }}
+                  />
+                  <div
+                    className="text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Send this link through your approved chat or email channel.
+                    The recipient can sign in with IBM W3ID and join this room
+                    directly.
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
 
-        <button
-          onClick={onClose}
-          className="mt-4 w-full rounded-xl border px-4 py-2 transition-colors"
-          style={{
-            backgroundColor: "var(--surface-secondary)",
-            borderColor: "var(--border-color)",
-            color: "var(--text-primary)",
-          }}
+        <div
+          className="border-t p-4"
+          style={{ borderColor: "var(--border-color)" }}
         >
-          Close
-        </button>
+          <button
+            onClick={onClose}
+            className="w-full rounded-lg border px-4 py-3 font-semibold"
+            style={{
+              backgroundColor: "var(--surface-secondary)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            Close
+          </button>
+        </div>
       </div>
     </div>
   );

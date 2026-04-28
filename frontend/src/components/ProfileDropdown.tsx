@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
 import EditProfileModal from "./EditProfileModal";
+import { apiFetch } from "@/lib/api";
 
 interface User {
   id: string;
@@ -53,11 +54,8 @@ export default function ProfileDropdown({
     setSpectatorMode(newValue);
 
     try {
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
-      const response = await fetch(`${appUrl}/api/v1/users/me`, {
+      const response = await apiFetch("/api/v1/users/me", {
         method: "PATCH",
-        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
@@ -80,11 +78,8 @@ export default function ProfileDropdown({
 
   const handleLogout = async () => {
     try {
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
-      await fetch(`${appUrl}/api/v1/auth/logout`, {
+      await apiFetch("/api/v1/auth/logout", {
         method: "POST",
-        credentials: "include",
       });
     } catch (error) {
       console.error("Error during logout:", error);

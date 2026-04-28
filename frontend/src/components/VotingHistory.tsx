@@ -1,11 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { BarChart3, ClipboardList, Clock3, RefreshCw, X } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 interface Vote {
   user_id: string;
   display_name: string;
   card_value: string;
+  submitted_at?: string | null;
+}
+
+interface VotingSpeedStat {
+  user_id: string;
+  display_name: string;
+  seconds: number;
 }
 
 interface HistoryEntry {
@@ -17,6 +26,8 @@ interface HistoryEntry {
   final_estimate: string | null;
   vote_count: number;
   votes: Vote[];
+  fastest_voter?: VotingSpeedStat | null;
+  slowest_voter?: VotingSpeedStat | null;
 }
 
 interface VotingHistoryProps {
@@ -24,6 +35,19 @@ interface VotingHistoryProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const parseCardValue = (value: string): number | null => {
+  if (value === "½") return 0.5;
+  if (value === "¼") return 0.25;
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+};
+
+const formatSpeed = (seconds?: number | null) => {
+  if (seconds === null || seconds === undefined) return "-";
+  return `${seconds.toFixed(seconds % 1 === 0 ? 0 : 1)}s`;
+};
 
 export default function VotingHistory({
   gameId,
@@ -34,22 +58,12 @@ export default function VotingHistory({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (isOpen && gameId) {
-      fetchHistory();
-    }
-  }, [isOpen, gameId]);
-
   const fetchHistory = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
-      const response = await fetch(`${appUrl}/api/v1/games/${gameId}/history`, {
-        credentials: "include",
-      });
+      const response = await apiFetch(`/api/v1/games/${gameId}/history`);
 
       if (!response.ok) {
         throw new Error("Failed to fetch voting history");
@@ -57,13 +71,20 @@ export default function VotingHistory({
 
       const data = await response.json();
       setHistory(data.history || []);
-    } catch (err: any) {
-      console.error("Error fetching history:", err);
-      setError(err.message || "Failed to load voting history");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load voting history",
+      );
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (isOpen && gameId) {
+      void fetchHistory();
+    }
+  }, [isOpen, gameId]);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -77,201 +98,260 @@ export default function VotingHistory({
 
   const calculateAverage = (votes: Vote[]): number | null => {
     const numericVotes = votes
-      .map((v) => {
-        const val = v.card_value;
-        if (val === "½") return 0.5;
-        if (val === "¼") return 0.25;
-        const num = parseFloat(val);
-        return isNaN(num) ? null : num;
-      })
-      .filter((v) => v !== null) as number[];
+      .map((vote) => parseCardValue(vote.card_value))
+      .filter((value): value is number => value !== null);
 
     if (numericVotes.length === 0) return null;
 
-    const sum = numericVotes.reduce((a, b) => a + b, 0);
-    return sum / numericVotes.length;
+    const sum = numericVotes.reduce((total, value) => total + value, 0);
+    return Math.round((sum / numericVotes.length) * 10) / 10;
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#0f1729] rounded-xl w-full max-w-4xl max-h-[80vh] flex flex-col border border-gray-700">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-700">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "var(--bg-overlay)" }}
+    >
+      <div
+        className="flex max-h-[86vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border shadow-theme-strong"
+        style={{
+          backgroundColor: "var(--surface-primary)",
+          borderColor: "var(--border-color)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <div
+          className="flex items-center justify-between border-b p-5"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-lg"
+              style={{
+                backgroundColor: "var(--surface-accent)",
+                color: "var(--primary)",
+              }}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-              />
-            </svg>
-            Voting History
-          </h2>
+              <ClipboardList className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Voting History</h2>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                Completed rounds and estimates
+              </p>
+            </div>
+          </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border"
+            style={{
+              backgroundColor: "var(--surface-secondary)",
+              borderColor: "var(--border-color)",
+            }}
+            aria-label="Close voting history"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-5">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <svg
-                  className="animate-spin h-8 w-8 text-blue-500 mx-auto mb-2"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                <p className="text-gray-400">Loading history...</p>
+            <div className="flex items-center justify-center py-14">
+              <div
+                className="flex items-center gap-3"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                <RefreshCw className="h-5 w-5 animate-spin" />
+                Loading history...
               </div>
             </div>
           ) : error ? (
-            <div className="text-center py-12">
-              <svg
-                className="w-12 h-12 text-red-400 mx-auto mb-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-              <p className="text-red-400">{error}</p>
+            <div className="flex flex-col items-center justify-center py-14 text-center">
+              <p style={{ color: "var(--danger)" }}>{error}</p>
               <button
                 onClick={fetchHistory}
-                className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold"
+                style={{
+                  backgroundColor: "var(--surface-accent)",
+                  color: "var(--primary)",
+                }}
               >
                 Try Again
               </button>
             </div>
           ) : history.length === 0 ? (
-            <div className="text-center py-12">
-              <svg
-                className="w-16 h-16 text-gray-600 mx-auto mb-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <div className="flex flex-col items-center justify-center py-14 text-center">
+              <ClipboardList
+                className="mb-3 h-10 w-10"
+                style={{ color: "var(--text-muted)" }}
+              />
+              <p className="font-semibold">No voting history yet</p>
+              <p
+                className="mt-1 text-sm"
+                style={{ color: "var(--text-tertiary)" }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              <p className="text-gray-400 text-lg">No voting history yet</p>
-              <p className="text-gray-500 text-sm mt-2">
-                Complete some voting rounds to see history here
+                Completed voting rounds will appear here.
               </p>
             </div>
           ) : (
             <div className="space-y-4">
               {history.map((entry) => {
                 const average = calculateAverage(entry.votes);
+                const calculatedEstimate =
+                  average === null ? null : String(Math.round(average));
+                const estimate = entry.final_estimate || calculatedEstimate;
+
                 return (
-                  <div
+                  <article
                     key={entry.round_id}
-                    className="bg-gray-700 bg-opacity-50 rounded-lg p-4 border border-gray-600"
+                    className="rounded-lg border p-4"
+                    style={{
+                      backgroundColor: "var(--surface-secondary)",
+                      borderColor: "var(--border-subtle)",
+                    }}
                   >
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg">
-                          {entry.issue_title || "Untitled Issue"}
+                    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="truncate text-lg font-semibold">
+                          {entry.issue_title || "Untitled issue"}
                         </h3>
-                        <p className="text-sm text-gray-400 mt-1">
+                        <p
+                          className="mt-1 text-sm"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
                           {formatDate(entry.revealed_at || entry.started_at)}
                         </p>
                       </div>
-                      {entry.final_estimate && (
-                        <div className="ml-4 px-4 py-2 bg-blue-600 rounded-lg font-bold text-lg">
-                          {entry.final_estimate}
-                        </div>
-                      )}
+                      <div
+                        className="rounded-lg px-4 py-3 text-center"
+                        style={{
+                          backgroundColor: "var(--surface-accent)",
+                          color: "var(--primary)",
+                        }}
+                      >
+                        <p className="text-xs font-medium">Estimate</p>
+                        <p className="text-2xl font-bold">{estimate || "-"}</p>
+                      </div>
                     </div>
 
-                    {/* Votes */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-3">
-                      {entry.votes.map((vote, idx) => (
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {entry.votes.map((vote) => (
                         <div
-                          key={idx}
-                          className="flex items-center gap-2 bg-gray-800 rounded px-3 py-2"
+                          key={`${entry.round_id}-${vote.user_id}`}
+                          className="grid grid-cols-[36px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border px-3 py-2"
+                          style={{
+                            backgroundColor: "var(--surface-primary)",
+                            borderColor: "var(--border-subtle)",
+                          }}
                         >
-                          <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                          <div
+                            className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold"
+                            style={{
+                              backgroundColor: "var(--surface-tertiary)",
+                              color: "var(--text-secondary)",
+                            }}
+                          >
                             {vote.display_name.charAt(0).toUpperCase()}
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm truncate">
-                              {vote.display_name}
-                            </p>
-                          </div>
-                          <div className="font-bold text-blue-400">
+                          <span className="truncate text-sm font-medium">
+                            {vote.display_name}
+                          </span>
+                          <span
+                            className="font-bold"
+                            style={{ color: "var(--primary)" }}
+                          >
                             {vote.card_value}
-                          </div>
+                          </span>
                         </div>
                       ))}
                     </div>
 
-                    {/* Stats */}
-                    <div className="flex items-center gap-4 text-sm text-gray-400 pt-3 border-t border-gray-600">
-                      <span>{entry.vote_count} votes</span>
-                      {average !== null && (
-                        <span>Average: {average.toFixed(1)}</span>
-                      )}
+                    <div
+                      className="mt-4 grid gap-3 border-t pt-4 sm:grid-cols-4"
+                      style={{ borderColor: "var(--border-subtle)" }}
+                    >
+                      <div>
+                        <p
+                          className="flex items-center gap-2 text-xs"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          <BarChart3 className="h-3.5 w-3.5" />
+                          Average
+                        </p>
+                        <p className="mt-1 font-semibold">
+                          {average === null ? "-" : average.toFixed(1)}
+                        </p>
+                      </div>
+                      <div>
+                        <p
+                          className="text-xs"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          Votes
+                        </p>
+                        <p className="mt-1 font-semibold">{entry.vote_count}</p>
+                      </div>
+                      <div>
+                        <p
+                          className="flex items-center gap-2 text-xs"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          <Clock3 className="h-3.5 w-3.5" />
+                          Fastest
+                        </p>
+                        <p className="mt-1 truncate font-semibold">
+                          {entry.fastest_voter?.display_name || "-"}
+                          {entry.fastest_voter && (
+                            <span
+                              className="ml-2 text-sm"
+                              style={{ color: "var(--text-tertiary)" }}
+                            >
+                              {formatSpeed(entry.fastest_voter.seconds)}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <p
+                          className="flex items-center gap-2 text-xs"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          <Clock3 className="h-3.5 w-3.5" />
+                          Slowest
+                        </p>
+                        <p className="mt-1 truncate font-semibold">
+                          {entry.slowest_voter?.display_name || "-"}
+                          {entry.slowest_voter && (
+                            <span
+                              className="ml-2 text-sm"
+                              style={{ color: "var(--text-tertiary)" }}
+                            >
+                              {formatSpeed(entry.slowest_voter.seconds)}
+                            </span>
+                          )}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  </article>
                 );
               })}
             </div>
           )}
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-700">
+        <div
+          className="border-t p-4"
+          style={{ borderColor: "var(--border-color)" }}
+        >
           <button
             onClick={onClose}
-            className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+            className="w-full rounded-lg border px-4 py-3 font-semibold"
+            style={{
+              backgroundColor: "var(--surface-secondary)",
+              borderColor: "var(--border-color)",
+            }}
           >
             Close
           </button>

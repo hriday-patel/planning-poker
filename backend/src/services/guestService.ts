@@ -9,12 +9,31 @@ import { v4 as uuidv4 } from "uuid";
 import { db } from "../config/database";
 import { redisClient } from "../config/redis";
 import { logger } from "../utils/logger";
-import { GuestSession, UserRecord, UserSession } from "../types/auth.types";
+import {
+  GuestSession,
+  TokenPair,
+  UserRecord,
+  UserSession,
+} from "../types/auth.types";
 import { generateTokens } from "./tokenService";
 
 const GUEST_SESSION_NAMESPACE = "guest:session";
 const GUEST_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 const GUEST_ID_PREFIX = "guest_";
+
+const normalizeGuestDisplayName = (displayName?: string): string | null => {
+  const trimmedDisplayName = displayName?.trim();
+
+  if (!trimmedDisplayName) {
+    return null;
+  }
+
+  if (trimmedDisplayName.length > 40) {
+    throw new Error("Display name must be 40 characters or less");
+  }
+
+  return trimmedDisplayName;
+};
 
 /**
  * Generate a unique guest ID
@@ -74,7 +93,8 @@ export const createGuestUser = async (
 ): Promise<UserRecord> => {
   try {
     const guestId = generateGuestId();
-    const guestDisplayName = displayName || generateGuestDisplayName();
+    const guestDisplayName =
+      normalizeGuestDisplayName(displayName) || generateGuestDisplayName();
 
     const result = await db.query(
       `INSERT INTO users (id, display_name, avatar_url, spectator_mode, theme_preference)
@@ -89,6 +109,59 @@ export const createGuestUser = async (
     return user;
   } catch (error) {
     logger.error("Error creating guest user:", error);
+    throw error;
+  }
+};
+
+/**
+ * Update an existing guest user's display name and refresh auth tokens.
+ */
+export const updateGuestDisplayName = async (
+  guestId: string,
+  displayName: string,
+): Promise<{
+  user: UserSession;
+  tokens: TokenPair;
+}> => {
+  try {
+    if (!isGuestUser(guestId)) {
+      throw new Error("Only guest display names can be updated here");
+    }
+
+    const guestDisplayName = normalizeGuestDisplayName(displayName);
+    if (!guestDisplayName) {
+      throw new Error("Display name is required");
+    }
+
+    const result = await db.query(
+      `UPDATE users
+       SET display_name = $2, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING *`,
+      [guestId, guestDisplayName],
+    );
+
+    if (result.rows.length === 0) {
+      throw new Error("Guest user not found");
+    }
+
+    const guestUser = result.rows[0] as UserRecord;
+    const tokens = generateTokens(guestUser.id, guestUser.display_name);
+
+    await storeGuestSession(
+      guestUser.id,
+      guestUser.display_name,
+      tokens.refreshToken,
+    );
+
+    logger.info(`Guest display name updated: ${guestId} (${guestDisplayName})`);
+
+    return {
+      user: toGuestUserSession(guestUser),
+      tokens,
+    };
+  } catch (error) {
+    logger.error("Error updating guest display name:", error);
     throw error;
   }
 };

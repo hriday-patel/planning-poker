@@ -28,6 +28,8 @@ import deckRoutes from "./routes/deck.routes";
 import issueRoutes from "./routes/issue.routes";
 import guestRoutes from "./routes/guest.routes";
 import { initializeSystemDecks } from "./services/deckService";
+import { findGuestUserById, isGuestUser } from "./services/guestService";
+import { findUserById } from "./services/userService";
 import { registerHandlers } from "./websocket/handlers";
 
 const parseCookies = (cookieHeader?: string): Record<string, string> => {
@@ -134,10 +136,38 @@ const createHttpsServer = (): https.Server => {
 
 const server = useHttps ? createHttpsServer() : http.createServer(app);
 
+const parseAllowedOrigins = (): string[] => {
+  const configuredOrigins = [
+    process.env.CORS_ORIGIN,
+    process.env.FRONTEND_URL,
+    "http://localhost:3000",
+  ]
+    .filter(Boolean)
+    .flatMap((originList) => originList!.split(","))
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(configuredOrigins));
+};
+
+const allowedOrigins = parseAllowedOrigins();
+const corsCredentials = process.env.CORS_CREDENTIALS !== "false";
+const expressCorsOptions: cors.CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new Error(`Origin ${origin} is not allowed by CORS`));
+  },
+  credentials: corsCredentials,
+};
+
 const io = new SocketIOServer(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
-    credentials: true,
+    origin: allowedOrigins,
+    credentials: corsCredentials,
   },
 });
 
@@ -147,12 +177,7 @@ app.use(
     crossOriginResourcePolicy: { policy: "cross-origin" },
   }),
 );
-app.use(
-  cors({
-    origin: process.env.CORS_ORIGIN || "http://localhost:3000",
-    credentials: true,
-  }),
-);
+app.use(cors(expressCorsOptions));
 app.use(compression());
 app.use(morgan("combined"));
 app.use(express.json());
@@ -220,7 +245,7 @@ app.use("/api/v1/decks", deckRoutes);
 // Error handling middleware
 app.use(errorHandler);
 
-// WebSocket connection handling with authentication
+// WebSocket connection handling with authentication (supports guest users)
 io.use(async (socket, next) => {
   try {
     const token = extractSocketAccessToken(socket);
@@ -234,10 +259,23 @@ io.use(async (socket, next) => {
       return next(new Error("Invalid or expired token"));
     }
 
-    (socket as any).userId = payload.userId;
-    (socket as any).displayName = payload.displayName;
+    const isGuest = isGuestUser(payload.userId);
+    const user = isGuest
+      ? await findGuestUserById(payload.userId)
+      : await findUserById(payload.userId);
 
-    logger.info(`WebSocket authenticated: ${payload.userId}`);
+    if (!user) {
+      return next(new Error("User not found"));
+    }
+
+    // Store current user info in socket for handlers
+    (socket as any).userId = payload.userId;
+    (socket as any).displayName = user.display_name;
+    (socket as any).isGuest = isGuest;
+
+    logger.info(
+      `WebSocket authenticated: ${payload.userId} (guest: ${isGuest})`,
+    );
     next();
   } catch (error) {
     logger.error("WebSocket authentication error:", error);

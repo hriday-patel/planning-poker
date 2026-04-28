@@ -465,4 +465,141 @@ export const setVotingIssue = async (
   }
 };
 
+export const startIssueVotingRound = async (
+  gameId: string,
+  issueId: string,
+  roundId: string,
+  userId: string,
+): Promise<IssueRecord> => {
+  try {
+    const hasPermission = await hasGamePermission(
+      gameId,
+      userId,
+      "manage_issues",
+    );
+    if (!hasPermission) {
+      throw new Error(
+        "You don't have permission to manage issues in this game",
+      );
+    }
+
+    const client = await db.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const issueResult = await client.query(
+        "SELECT * FROM issues WHERE id = $1 AND game_id = $2 FOR UPDATE",
+        [issueId, gameId],
+      );
+
+      if (issueResult.rows.length === 0) {
+        throw new Error("Issue not found");
+      }
+
+      const existingIssue = issueResult.rows[0] as IssueRecord;
+      if (existingIssue.status === IssueStatus.VOTED) {
+        throw new Error("This issue has already been voted");
+      }
+
+      await client.query(
+        "UPDATE issues SET status = $1 WHERE game_id = $2 AND status = $3",
+        [IssueStatus.PENDING, gameId, IssueStatus.VOTING],
+      );
+
+      const updatedIssueResult = await client.query(
+        "UPDATE issues SET status = $1 WHERE id = $2 AND game_id = $3 RETURNING *",
+        [IssueStatus.VOTING, issueId, gameId],
+      );
+
+      await client.query(
+        "UPDATE voting_rounds SET is_active = FALSE WHERE game_id = $1 AND is_active = TRUE",
+        [gameId],
+      );
+
+      await client.query(
+        `INSERT INTO voting_rounds (id, game_id, issue_id, is_active)
+         VALUES ($1, $2, $3, TRUE)`,
+        [roundId, gameId, issueId],
+      );
+
+      await client.query("COMMIT");
+
+      logger.info(`Voting round ${roundId} started for issue ${issueId}`);
+      return updatedIssueResult.rows[0] as IssueRecord;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error("Error starting issue voting round:", error);
+    throw error;
+  }
+};
+
+export const completeIssueVotingRound = async (
+  gameId: string,
+  roundId: string,
+  issueId: string,
+  finalEstimate: string | null,
+  votes: Array<{
+    user_id: string;
+    card_value: string;
+    submitted_at?: string | null;
+  }>,
+): Promise<IssueRecord | null> => {
+  try {
+    const client = await db.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      await client.query(
+        `INSERT INTO voting_rounds (id, game_id, issue_id, revealed_at, is_active)
+         VALUES ($1, $2, $3, CURRENT_TIMESTAMP, FALSE)
+         ON CONFLICT (id)
+         DO UPDATE SET revealed_at = CURRENT_TIMESTAMP, is_active = FALSE`,
+        [roundId, gameId, issueId],
+      );
+
+      for (const vote of votes) {
+        const submittedAt = vote.submitted_at
+          ? new Date(vote.submitted_at)
+          : new Date();
+
+        await client.query(
+          `INSERT INTO votes (round_id, user_id, card_value, submitted_at)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (round_id, user_id)
+           DO UPDATE SET card_value = EXCLUDED.card_value, submitted_at = EXCLUDED.submitted_at`,
+          [roundId, vote.user_id, vote.card_value, submittedAt],
+        );
+      }
+
+      const issueResult = await client.query(
+        `UPDATE issues
+         SET status = $1, final_estimate = $2
+         WHERE id = $3 AND game_id = $4
+         RETURNING *`,
+        [IssueStatus.VOTED, finalEstimate, issueId, gameId],
+      );
+
+      await client.query("COMMIT");
+
+      logger.info(`Voting round ${roundId} completed for issue ${issueId}`);
+      return issueResult.rows[0] || null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error("Error completing issue voting round:", error);
+    throw error;
+  }
+};
+
 // Made with Bob

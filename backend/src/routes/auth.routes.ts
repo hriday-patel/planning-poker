@@ -18,7 +18,6 @@ import {
   sanitizeReturnTo,
 } from "../services/authService";
 import { refreshAccessToken } from "../services/tokenService";
-import { findUserById, toUserSession } from "../services/userService";
 import { logger } from "../utils/logger";
 
 const router = Router();
@@ -217,19 +216,9 @@ router.get(
         return;
       }
 
-      const user = await findUserById(authReq.userId);
-
-      if (!user) {
-        res.status(404).json({
-          success: false,
-          error: "User not found",
-        });
-        return;
-      }
-
       res.json({
         success: true,
-        user: toUserSession(user),
+        user: authReq.user,
       });
       return;
     } catch (error) {

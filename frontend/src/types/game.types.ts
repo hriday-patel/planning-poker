@@ -52,6 +52,7 @@ export interface Player {
   has_voted: boolean;
   card_value: string | null; // null until revealed
   is_online: boolean;
+  can_vote?: boolean;
 }
 
 export interface Issue {

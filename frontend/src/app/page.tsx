@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import ThemeToggle from "@/components/ThemeToggle";
-import GuestModeModal from "@/components/GuestModeModal";
+import { apiFetch } from "@/lib/api";
 
 const ibmLogoUrl =
   process.env.NEXT_PUBLIC_IBM_LOGO_URL ||
@@ -12,17 +12,19 @@ const ibmLogoUrl =
 export default function Home() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [showGuestModal, setShowGuestModal] = useState(false);
 
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const appUrl =
-          process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
-        const response = await fetch(`${appUrl}/api/v1/auth/me`, {
-          credentials: "include",
-        });
-        setIsAuthenticated(response.ok);
+        const response = await apiFetch("/api/v1/auth/me");
+
+        if (!response.ok) {
+          setIsAuthenticated(false);
+          return;
+        }
+
+        const data = await response.json();
+        setIsAuthenticated(!data.user?.isGuest);
       } catch (_error) {
         setIsAuthenticated(false);
       }
@@ -35,7 +37,7 @@ export default function Home() {
     if (isAuthenticated) {
       router.push("/create");
     } else {
-      router.push("/login");
+      router.push("/login?returnTo=%2Fcreate");
     }
   };
 
@@ -182,7 +184,7 @@ export default function Home() {
               </button>
 
               <button
-                onClick={() => setShowGuestModal(true)}
+                onClick={() => router.push("/create?guest=1")}
                 className="rounded-2xl border px-8 py-4 text-center text-lg font-semibold transition-colors hover:opacity-80"
                 style={{
                   backgroundColor: "var(--surface-primary)",
@@ -640,12 +642,6 @@ export default function Home() {
           </div>
         </div>
       </footer>
-
-      <GuestModeModal
-        isOpen={showGuestModal}
-        onClose={() => setShowGuestModal(false)}
-        mode="create"
-      />
     </div>
   );
 }

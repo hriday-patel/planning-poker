@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Check, Settings, X } from "lucide-react";
 import { Game, GamePermission, Player } from "@/types/game.types";
 
 interface GameSettingsModalProps {
@@ -11,6 +12,72 @@ interface GameSettingsModalProps {
   currentUserId: string | null;
   onUpdateSettings: (settings: any) => void;
   onTransferFacilitator: (newFacilitatorId: string) => void;
+}
+
+const primaryButtonStyle = {
+  background:
+    "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
+  color: "white",
+  boxShadow:
+    "0 16px 40px -24px color-mix(in srgb, var(--primary) 70%, transparent)",
+} as const;
+
+function ToggleRow({
+  title,
+  description,
+  checked,
+  disabled,
+  onChange,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label
+      className="flex cursor-pointer items-center justify-between gap-4 rounded-lg border p-4"
+      style={{
+        backgroundColor: "var(--surface-secondary)",
+        borderColor: "var(--border-subtle)",
+        opacity: disabled ? 0.62 : 1,
+      }}
+    >
+      <div className="min-w-0">
+        <div className="font-medium">{title}</div>
+        <div className="text-sm" style={{ color: "var(--text-tertiary)" }}>
+          {description}
+        </div>
+      </div>
+      <span
+        className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full"
+        style={{
+          backgroundColor: checked
+            ? "var(--primary)"
+            : "var(--surface-tertiary)",
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.checked)}
+          className="sr-only"
+        />
+        <span
+          className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white transition-transform"
+          style={{
+            transform: checked ? "translateX(22px)" : "translateX(2px)",
+          }}
+        >
+          {checked && (
+            <Check className="h-3 w-3" style={{ color: "var(--primary)" }} />
+          )}
+        </span>
+      </span>
+    </label>
+  );
 }
 
 export default function GameSettingsModal({
@@ -30,11 +97,9 @@ export default function GameSettingsModal({
     show_average: true,
     show_countdown: true,
   });
-
-  const [selectedFacilitator, setSelectedFacilitator] = useState<string>("");
+  const [selectedFacilitator, setSelectedFacilitator] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // Initialize settings from game when modal opens
   useEffect(() => {
     if (isOpen && game) {
       setSettings({
@@ -52,109 +117,103 @@ export default function GameSettingsModal({
   if (!isOpen || !game) return null;
 
   const isFacilitator = currentUserId === game.facilitator_id;
+  const hasChanges =
+    settings.who_can_reveal !== game.who_can_reveal ||
+    settings.who_can_manage_issues !== game.who_can_manage_issues ||
+    settings.auto_reveal !== game.auto_reveal ||
+    settings.fun_features_enabled !== game.fun_features_enabled ||
+    settings.show_average !== game.show_average ||
+    settings.show_countdown !== game.show_countdown ||
+    selectedFacilitator !== game.facilitator_id;
 
-  const handleSave = async () => {
+  const handleSave = () => {
+    if (!isFacilitator || !hasChanges) return;
+
     setIsSaving(true);
-    try {
-      // Update settings via WebSocket
-      onUpdateSettings(settings);
+    onUpdateSettings(settings);
 
-      // Transfer facilitator if changed
-      if (selectedFacilitator !== game.facilitator_id) {
-        onTransferFacilitator(selectedFacilitator);
-      }
-
-      // Close modal after a brief delay to show success
-      setTimeout(() => {
-        setIsSaving(false);
-        onClose();
-      }, 500);
-    } catch (error) {
-      console.error("Error saving settings:", error);
-      setIsSaving(false);
+    if (selectedFacilitator !== game.facilitator_id) {
+      onTransferFacilitator(selectedFacilitator);
     }
-  };
 
-  const hasChanges = () => {
-    return (
-      settings.who_can_reveal !== game.who_can_reveal ||
-      settings.who_can_manage_issues !== game.who_can_manage_issues ||
-      settings.auto_reveal !== game.auto_reveal ||
-      settings.fun_features_enabled !== game.fun_features_enabled ||
-      settings.show_average !== game.show_average ||
-      settings.show_countdown !== game.show_countdown ||
-      selectedFacilitator !== game.facilitator_id
-    );
+    window.setTimeout(() => {
+      setIsSaving(false);
+      onClose();
+    }, 350);
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#0f1729] rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-gray-700">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-700">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "var(--bg-overlay)" }}
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-lg border shadow-theme-strong"
+        style={{
+          backgroundColor: "var(--surface-primary)",
+          borderColor: "var(--border-color)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <div
+          className="flex items-center justify-between border-b p-5"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-lg"
+              style={{
+                backgroundColor: "var(--surface-accent)",
+                color: "var(--primary)",
+              }}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
-            Game Settings
-          </h2>
+              <Settings className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Game Settings</h2>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                Controls for this voting room
+              </p>
+            </div>
+          </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border"
+            style={{
+              backgroundColor: "var(--surface-secondary)",
+              borderColor: "var(--border-color)",
+            }}
+            aria-label="Close settings"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-5">
           {!isFacilitator && (
-            <div className="mb-6 p-4 bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg">
-              <p className="text-yellow-200 text-sm">
-                Only the facilitator can modify game settings.
-              </p>
+            <div
+              className="mb-4 rounded-lg border p-3 text-sm"
+              style={{
+                backgroundColor:
+                  "color-mix(in srgb, var(--warning) 12%, transparent)",
+                borderColor: "var(--warning)",
+                color: "var(--warning)",
+              }}
+            >
+              Only the facilitator can modify these settings.
             </div>
           )}
 
-          <div className="space-y-6">
-            {/* Facilitator Selection */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
+          <div className="grid gap-4">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium">
                 Game Facilitator
-              </label>
+              </span>
               <select
                 value={selectedFacilitator}
-                onChange={(e) => setSelectedFacilitator(e.target.value)}
+                onChange={(event) => setSelectedFacilitator(event.target.value)}
                 disabled={!isFacilitator}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rounded-lg px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {players.map((player) => (
                   <option key={player.id} value={player.id}>
@@ -163,187 +222,120 @@ export default function GameSettingsModal({
                   </option>
                 ))}
               </select>
-              <p className="text-xs text-gray-400 mt-1">
-                Transfer facilitator role to another player
-              </p>
-            </div>
-
-            {/* Who Can Reveal Cards */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Who can reveal cards
-              </label>
-              <select
-                value={settings.who_can_reveal}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    who_can_reveal: e.target.value as GamePermission,
-                  })
-                }
-                disabled={!isFacilitator}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              <span
+                className="mt-1 block text-xs"
+                style={{ color: "var(--text-tertiary)" }}
               >
-                <option value="all_players">All players</option>
-                <option value="facilitator_only">Only facilitator</option>
-              </select>
-              <p className="text-xs text-gray-400 mt-1">
-                Players who are allowed to flip cards and show results
-              </p>
+                Transfer facilitator role to another player.
+              </span>
+            </label>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium">
+                  Reveal cards
+                </span>
+                <select
+                  value={settings.who_can_reveal}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      who_can_reveal: event.target.value as GamePermission,
+                    })
+                  }
+                  disabled={!isFacilitator}
+                  className="w-full rounded-lg px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <option value="all_players">All players</option>
+                  <option value="facilitator_only">Only facilitator</option>
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium">
+                  Manage issues
+                </span>
+                <select
+                  value={settings.who_can_manage_issues}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      who_can_manage_issues: event.target
+                        .value as GamePermission,
+                    })
+                  }
+                  disabled={!isFacilitator}
+                  className="w-full rounded-lg px-3 py-3 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <option value="all_players">All players</option>
+                  <option value="facilitator_only">Only facilitator</option>
+                </select>
+              </label>
             </div>
 
-            {/* Who Can Manage Issues */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Who can manage issues
-              </label>
-              <select
-                value={settings.who_can_manage_issues}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    who_can_manage_issues: e.target.value as GamePermission,
-                  })
-                }
+            <div className="grid gap-3">
+              <ToggleRow
+                title="Auto-reveal cards"
+                description="Reveal automatically after every eligible player votes."
+                checked={settings.auto_reveal}
                 disabled={!isFacilitator}
-                className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <option value="all_players">All players</option>
-                <option value="facilitator_only">Only facilitator</option>
-              </select>
-              <p className="text-xs text-gray-400 mt-1">
-                Players who are allowed to create, delete and edit issues
-              </p>
-            </div>
-
-            {/* Toggle Settings */}
-            <div className="space-y-4 pt-4 border-t border-gray-700">
-              {/* Auto-reveal */}
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.auto_reveal}
-                  onChange={(e) =>
-                    setSettings({ ...settings, auto_reveal: e.target.checked })
-                  }
-                  disabled={!isFacilitator}
-                  className="mt-1 w-5 h-5 rounded border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <div className="flex-1">
-                  <div className="font-medium">Auto-reveal cards</div>
-                  <div className="text-xs text-gray-400">
-                    Show cards automatically after everyone voted
-                  </div>
-                </div>
-              </label>
-
-              {/* Fun Features */}
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.fun_features_enabled}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      fun_features_enabled: e.target.checked,
-                    })
-                  }
-                  disabled={!isFacilitator}
-                  className="mt-1 w-5 h-5 rounded border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <div className="flex-1">
-                  <div className="font-medium">Enable fun features</div>
-                  <div className="text-xs text-gray-400">
-                    Allow players throw projectiles to each other in this game
-                  </div>
-                </div>
-              </label>
-
-              {/* Show Average */}
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.show_average}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      show_average: e.target.checked,
-                    })
-                  }
-                  disabled={!isFacilitator}
-                  className="mt-1 w-5 h-5 rounded border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <div className="flex-1">
-                  <div className="font-medium">Show average in results</div>
-                  <div className="text-xs text-gray-400">
-                    Include the average value in the results of the voting
-                  </div>
-                </div>
-              </label>
-
-              {/* Show Countdown */}
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={settings.show_countdown}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      show_countdown: e.target.checked,
-                    })
-                  }
-                  disabled={!isFacilitator}
-                  className="mt-1 w-5 h-5 rounded border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <div className="flex-1">
-                  <div className="font-medium">Show countdown animation</div>
-                  <div className="text-xs text-gray-400">
-                    A countdown is shown when revealing cards to ensure
-                    last-second votes are recorded
-                  </div>
-                </div>
-              </label>
+                onChange={(checked) =>
+                  setSettings({ ...settings, auto_reveal: checked })
+                }
+              />
+              <ToggleRow
+                title="Enable fun features"
+                description="Allow playful table interactions during voting."
+                checked={settings.fun_features_enabled}
+                disabled={!isFacilitator}
+                onChange={(checked) =>
+                  setSettings({ ...settings, fun_features_enabled: checked })
+                }
+              />
+              <ToggleRow
+                title="Show average in results"
+                description="Include the average vote in the statistics modal."
+                checked={settings.show_average}
+                disabled={!isFacilitator}
+                onChange={(checked) =>
+                  setSettings({ ...settings, show_average: checked })
+                }
+              />
+              <ToggleRow
+                title="Show countdown animation"
+                description="Show the compact table countdown before statistics appear."
+                checked={settings.show_countdown}
+                disabled={!isFacilitator}
+                onChange={(checked) =>
+                  setSettings({ ...settings, show_countdown: checked })
+                }
+              />
             </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-700 flex gap-3">
+        <div
+          className="grid gap-3 border-t p-4 sm:grid-cols-2"
+          style={{ borderColor: "var(--border-color)" }}
+        >
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+            className="rounded-lg border px-4 py-3 font-semibold"
+            style={{
+              backgroundColor: "var(--surface-secondary)",
+              borderColor: "var(--border-color)",
+            }}
           >
             Cancel
           </button>
           {isFacilitator && (
             <button
               onClick={handleSave}
-              disabled={!hasChanges() || isSaving}
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              disabled={!hasChanges || isSaving}
+              className="rounded-lg px-4 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+              style={primaryButtonStyle}
             >
-              {isSaving ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      fill="none"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                  Saving...
-                </>
-              ) : (
-                "Save Changes"
-              )}
+              {isSaving ? "Saving..." : "Save Changes"}
             </button>
           )}
         </div>

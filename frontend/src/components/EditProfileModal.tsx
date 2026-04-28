@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
+import { apiFetch } from "@/lib/api";
 
 interface User {
   id: string;
@@ -35,12 +36,8 @@ export default function EditProfileModal({
     setError(null);
 
     try {
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
-
-      const response = await fetch(`${appUrl}/api/v1/users/me`, {
+      const response = await apiFetch("/api/v1/users/me", {
         method: "PATCH",
-        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },

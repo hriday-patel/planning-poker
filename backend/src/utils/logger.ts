@@ -36,13 +36,4 @@ export const logger = winston.createLogger({
   ],
 });
 
-// If not in production, log to console with more detail
-if (process.env.NODE_ENV !== "production") {
-  logger.add(
-    new winston.transports.Console({
-      format: consoleFormat,
-    }),
-  );
-}
-
 // Made with Bob

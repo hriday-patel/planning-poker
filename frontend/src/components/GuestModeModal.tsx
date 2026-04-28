@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 
 interface GuestModeModalProps {
   isOpen: boolean;
@@ -39,17 +40,13 @@ export default function GuestModeModal({
     };
 
     try {
-      const appUrl =
-        process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
-
       if (mode === "create") {
         // Create a new game as guest
-        const response = await fetch(`${appUrl}/api/v1/guest/games`, {
+        const response = await apiFetch("/api/v1/guest/games", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          credentials: "include",
           body: JSON.stringify({
             name: gameName,
             displayName: displayName || undefined,
@@ -70,12 +67,11 @@ export default function GuestModeModal({
         router.push(`/game/${data.game.id}`);
       } else {
         // Join existing game as guest
-        const response = await fetch(`${appUrl}/api/v1/guest/join/${gameId}`, {
+        const response = await apiFetch(`/api/v1/guest/join/${gameId}`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          credentials: "include",
           body: JSON.stringify({
             displayName: displayName || undefined,
           }),
@@ -92,7 +88,7 @@ export default function GuestModeModal({
           );
         }
 
-        router.push(`/game/${data.game.id}`);
+        window.location.assign(`/game/${data.game.id}`);
       }
     } catch (err: any) {
       setError(err.message || "An error occurred");

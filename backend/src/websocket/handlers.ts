@@ -37,12 +37,17 @@ import {
   pauseTimer,
   stopTimer,
 } from "../services/roomManager";
-import { updateGame, hasGamePermission } from "../services/gameService";
+import {
+  updateGame,
+  hasGamePermission,
+  addGameParticipant,
+} from "../services/gameService";
 import {
   createIssue,
   updateIssue as updateIssueService,
   deleteIssue as deleteIssueService,
-  setVotingIssue,
+  startIssueVotingRound,
+  completeIssueVotingRound,
 } from "../services/issueService";
 import { logger } from "../utils/logger";
 import { v4 as uuidv4 } from "uuid";
@@ -65,13 +70,14 @@ export const registerHandlers = (io: SocketIOServer) => {
       try {
         const { game_id } = payload;
 
+        await addGameParticipant(game_id, userId);
+
         // Add player to room
         await addPlayerToRoom(game_id, authSocket.id, userId);
 
         // Join Socket.IO room
         authSocket.join(game_id);
 
-        // Get current game state
         const gameState = await getRoomState(game_id);
 
         // Send current state to the joining player
@@ -81,6 +87,7 @@ export const registerHandlers = (io: SocketIOServer) => {
         authSocket.broadcast.to(game_id).emit(ServerEvents.PLAYER_JOINED, {
           user: {
             id: userId,
+            user_id: userId,
             display_name: displayName,
             avatar_url:
               gameState.players.find((p) => p.id === userId)?.avatar_url ||
@@ -93,6 +100,11 @@ export const registerHandlers = (io: SocketIOServer) => {
               false,
           },
         });
+
+        io.to(game_id).emit(
+          ServerEvents.GAME_STATE,
+          await getRoomState(game_id),
+        );
 
         logger.info(`User ${userId} joined game ${game_id}`);
       } catch (error: any) {
@@ -166,6 +178,22 @@ export const registerHandlers = (io: SocketIOServer) => {
             revealCards(gameId);
             const results = calculateVotingResults(gameId);
 
+            if (results.issue_id) {
+              const updatedIssue = await completeIssueVotingRound(
+                gameId,
+                results.round_id,
+                results.issue_id,
+                results.final_estimate,
+                results.votes,
+              );
+
+              if (updatedIssue) {
+                io.to(gameId).emit(ServerEvents.ISSUE_UPDATED, {
+                  issue: updatedIssue,
+                });
+              }
+            }
+
             io.to(gameId).emit(ServerEvents.CARDS_REVEALED, results);
           }
 
@@ -192,6 +220,15 @@ export const registerHandlers = (io: SocketIOServer) => {
             throw new Error("Game ID is required");
           }
 
+          const gameState = await getRoomState(gameId);
+          if (!gameState.current_round?.issue_id) {
+            throw new Error("Pick an issue before revealing cards");
+          }
+
+          if (!haveAllPlayersVoted(gameId)) {
+            throw new Error("Wait for every non-spectator player to vote");
+          }
+
           // Check permission
           const hasPermission = await hasGamePermission(
             gameId,
@@ -205,6 +242,22 @@ export const registerHandlers = (io: SocketIOServer) => {
           // Reveal cards
           revealCards(gameId);
           const results = calculateVotingResults(gameId);
+
+          if (results.issue_id) {
+            const updatedIssue = await completeIssueVotingRound(
+              gameId,
+              results.round_id,
+              results.issue_id,
+              results.final_estimate,
+              results.votes,
+            );
+
+            if (updatedIssue) {
+              io.to(gameId).emit(ServerEvents.ISSUE_UPDATED, {
+                issue: updatedIssue,
+              });
+            }
+          }
 
           // Broadcast to all players
           io.to(gameId).emit(ServerEvents.CARDS_REVEALED, results);
@@ -228,6 +281,10 @@ export const registerHandlers = (io: SocketIOServer) => {
         try {
           const { game_id, issue_id } = payload;
 
+          if (!issue_id) {
+            throw new Error("Pick an issue before starting voting");
+          }
+
           // Check permission
           const hasPermission = await hasGamePermission(
             game_id,
@@ -238,8 +295,20 @@ export const registerHandlers = (io: SocketIOServer) => {
             throw new Error("You don't have permission to start voting");
           }
 
+          const gameState = await getRoomState(game_id);
+          if (gameState.current_round && !gameState.current_round.is_revealed) {
+            throw new Error("Reveal the current issue before starting another");
+          }
+
           // Generate round ID
           const roundId = uuidv4();
+
+          const issue = await startIssueVotingRound(
+            game_id,
+            issue_id,
+            roundId,
+            userId,
+          );
 
           // Clear previous round
           clearCurrentRound(game_id);
@@ -247,10 +316,7 @@ export const registerHandlers = (io: SocketIOServer) => {
           // Start new round
           startVotingRound(game_id, roundId, issue_id);
 
-          // If issue_id provided, set it as voting
-          if (issue_id) {
-            await setVotingIssue(game_id, issue_id, userId);
-          }
+          io.to(game_id).emit(ServerEvents.ISSUE_UPDATED, { issue });
 
           // Broadcast to all players
           io.to(game_id).emit(ServerEvents.NEW_ROUND_STARTED, {
@@ -284,6 +350,10 @@ export const registerHandlers = (io: SocketIOServer) => {
           io.to(game_id).emit(ServerEvents.GAME_SETTINGS_UPDATED, {
             settings,
           });
+          io.to(game_id).emit(
+            ServerEvents.GAME_STATE,
+            await getRoomState(game_id),
+          );
 
           logger.info(`Game settings updated in ${game_id} by ${userId}`);
         } catch (error: any) {
@@ -319,6 +389,11 @@ export const registerHandlers = (io: SocketIOServer) => {
             },
           );
 
+          io.to(game_id).emit(
+            ServerEvents.GAME_STATE,
+            await getRoomState(game_id),
+          );
+
           logger.info(`Timer started in game ${game_id}: ${duration_seconds}s`);
         } catch (error: any) {
           logger.error("Error starting timer:", error);
@@ -338,6 +413,10 @@ export const registerHandlers = (io: SocketIOServer) => {
         try {
           const { game_id } = payload;
           pauseTimer(game_id);
+          io.to(game_id).emit(
+            ServerEvents.GAME_STATE,
+            await getRoomState(game_id),
+          );
           logger.info(`Timer paused in game ${game_id}`);
         } catch (error: any) {
           logger.error("Error pausing timer:", error);
@@ -357,6 +436,11 @@ export const registerHandlers = (io: SocketIOServer) => {
         try {
           const { game_id } = payload;
           stopTimer(game_id);
+          io.to(game_id).emit(ServerEvents.TIMER_ENDED, {});
+          io.to(game_id).emit(
+            ServerEvents.GAME_STATE,
+            await getRoomState(game_id),
+          );
           logger.info(`Timer stopped in game ${game_id}`);
         } catch (error: any) {
           logger.error("Error stopping timer:", error);
@@ -398,6 +482,13 @@ export const registerHandlers = (io: SocketIOServer) => {
       async (payload: UpdateIssuePayload) => {
         try {
           const { game_id, issue } = payload;
+
+          if (issue.final_estimate !== undefined) {
+            const gameState = await getRoomState(game_id);
+            if (gameState.game.facilitator_id !== userId) {
+              throw new Error("Only the facilitator can set the estimate");
+            }
+          }
 
           const updatedIssue = await updateIssueService(
             issue.id,
@@ -467,6 +558,10 @@ export const registerHandlers = (io: SocketIOServer) => {
           io.to(game_id).emit(ServerEvents.FACILITATOR_CHANGED, {
             new_facilitator_id,
           });
+          io.to(game_id).emit(
+            ServerEvents.GAME_STATE,
+            await getRoomState(game_id),
+          );
 
           logger.info(
             `Facilitator changed to ${new_facilitator_id} in game ${game_id}`,

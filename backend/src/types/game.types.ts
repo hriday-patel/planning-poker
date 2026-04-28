@@ -66,7 +66,8 @@ export interface GameRecord {
  */
 export interface CreateGamePayload {
   name: string;
-  deck_id: string; // Deck ID
+  deck_id?: string; // Deck ID or supported voting-system alias
+  voting_system?: string;
   who_can_reveal?: GamePermission;
   who_can_manage_issues?: GamePermission;
   auto_reveal?: boolean;

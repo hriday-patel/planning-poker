@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -24,8 +25,16 @@ export default function LoginPage() {
   }, [searchParams]);
 
   const returnTo = useMemo(() => {
+    const explicitReturnTo = searchParams.get("returnTo");
     const invite = searchParams.get("invite");
     const gameId = searchParams.get("gameId");
+
+    if (
+      explicitReturnTo?.startsWith("/") &&
+      !explicitReturnTo.startsWith("//")
+    ) {
+      return explicitReturnTo;
+    }
 
     if (invite && gameId) {
       return `/game/${gameId}?invite=${encodeURIComponent(invite)}`;
@@ -41,13 +50,15 @@ export default function LoginPage() {
       }
 
       try {
-        const appUrl =
-          process.env.NEXT_PUBLIC_APP_URL || "https://localhost:3000";
-        const response = await fetch(`${appUrl}/api/v1/auth/me`, {
-          credentials: "include",
-        });
+        const response = await apiFetch("/api/v1/auth/me");
 
         if (response.ok) {
+          const data = await response.json();
+
+          if (data.user?.isGuest) {
+            return;
+          }
+
           router.push(returnTo);
         }
       } catch (_error) {
@@ -63,7 +74,7 @@ export default function LoginPage() {
 
     const loginUrl =
       process.env.NEXT_PUBLIC_W3ID_LOGIN_URL ||
-      "https://localhost:3002/api/v1/auth/w3id";
+      "http://localhost:3002/api/v1/auth/w3id";
     const redirectUrl = `${loginUrl}?returnTo=${encodeURIComponent(returnTo)}`;
 
     window.location.href = redirectUrl;
@@ -146,6 +157,26 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className="min-h-screen flex items-center justify-center"
+          style={{
+            backgroundColor: "var(--bg-primary)",
+            color: "var(--text-primary)",
+          }}
+        >
+          <div className="text-white">Loading...</div>
+        </div>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
   );
 }
 

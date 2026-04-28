@@ -11,6 +11,11 @@ const logger = {
     }
   },
   error: (...args: any[]) => {
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[GameSocket]", ...args);
+      return;
+    }
+
     console.error("[GameSocket]", ...args);
   },
 };
@@ -33,7 +38,7 @@ export enum ClientEvents {
 }
 
 export enum ServerEvents {
-  GAME_STATE_SYNC = "GAME_STATE_SYNC",
+  GAME_STATE = "GAME_STATE",
   PLAYER_JOINED = "PLAYER_JOINED",
   PLAYER_LEFT = "PLAYER_LEFT",
   VOTE_SUBMITTED = "VOTE_SUBMITTED",
@@ -60,6 +65,7 @@ export interface PlayerInfo {
   is_online: boolean;
   joined_at: Date;
   has_voted?: boolean;
+  can_vote?: boolean;
 }
 
 export interface VotingRound {
@@ -67,6 +73,31 @@ export interface VotingRound {
   issue_id: string | null;
   votes: Record<string, string>;
   is_revealed: boolean;
+}
+
+type BackendPlayerInfo = Partial<PlayerInfo> & {
+  id?: string;
+  is_facilitator?: boolean;
+};
+
+type BackendVotingRound = {
+  id: string;
+  issue_id: string | null;
+  votes?:
+    | Record<string, string>
+    | Array<{
+        user_id: string;
+        has_voted: boolean;
+        card_value: string | null;
+        can_vote?: boolean;
+      }>;
+  is_revealed: boolean;
+};
+
+export interface VotingSpeedStat {
+  user_id: string;
+  display_name: string;
+  seconds: number;
 }
 
 export interface TimerState {
@@ -78,15 +109,24 @@ export interface TimerState {
 export interface GameState {
   game: any; // Full game object from database
   players: PlayerInfo[];
+  issues?: any[];
   current_round: VotingRound | null;
   timer: TimerState | null;
 }
 
 export interface VotingResults {
-  votes: Array<{ user_id: string; card_value: string }>;
+  votes: Array<{
+    user_id: string;
+    card_value: string;
+    submitted_at?: string | null;
+  }>;
   distribution: Record<string, number>;
   average: number | null;
   agreement: number;
+  total_voters: number;
+  final_estimate?: string | null;
+  fastest_voter?: VotingSpeedStat | null;
+  slowest_voter?: VotingSpeedStat | null;
 }
 
 // Hook options
@@ -122,6 +162,93 @@ export function useGameSocket(options: UseGameSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+
+  const normalizeGameState = useCallback((state: any): GameState => {
+    const round = state.current_round as BackendVotingRound | null;
+    const roundVotes = Array.isArray(round?.votes) ? round.votes : [];
+    const voteRecord = Array.isArray(round?.votes)
+      ? round.votes.reduce<Record<string, string>>((votes, vote) => {
+          if (vote.card_value) {
+            votes[vote.user_id] = vote.card_value;
+          }
+          return votes;
+        }, {})
+      : round?.votes || {};
+
+    const players = (state.players || []).map((player: BackendPlayerInfo) => {
+      const userId = player.user_id || player.id || "";
+      const roundVote = roundVotes.find((vote) => vote.user_id === userId);
+
+      return {
+        user_id: userId,
+        display_name: player.display_name || "Player",
+        avatar_url: player.avatar_url ?? null,
+        is_spectator: Boolean(player.is_spectator),
+        socket_id: player.socket_id || "",
+        is_online: player.is_online ?? true,
+        joined_at: player.joined_at ? new Date(player.joined_at) : new Date(),
+        has_voted: player.has_voted ?? roundVote?.has_voted ?? false,
+        can_vote: roundVote?.can_vote ?? player.can_vote ?? true,
+      };
+    });
+
+    return {
+      game: state.game,
+      players,
+      issues: state.issues || [],
+      current_round: round
+        ? {
+            id: round.id,
+            issue_id: round.issue_id,
+            votes: voteRecord,
+            is_revealed: round.is_revealed,
+          }
+        : null,
+      timer: state.timer || null,
+    };
+  }, []);
+
+  const normalizeVotingResults = useCallback((results: any): VotingResults => {
+    const votes: Array<{
+      user_id: string;
+      card_value: string;
+      submitted_at?: string | null;
+    }> = Array.isArray(results?.votes)
+      ? results.votes
+          .filter(
+            (vote: any) =>
+              typeof vote?.user_id === "string" &&
+              typeof vote?.card_value === "string",
+          )
+          .map((vote: any) => ({
+            user_id: vote.user_id,
+            card_value: vote.card_value,
+            submitted_at: vote.submitted_at ?? null,
+          }))
+      : [];
+    const distribution =
+      results?.distribution ||
+      votes.reduce<Record<string, number>>((allVotes, vote) => {
+        if (vote.card_value) {
+          allVotes[vote.card_value] = (allVotes[vote.card_value] || 0) + 1;
+        }
+        return allVotes;
+      }, {});
+
+    return {
+      votes,
+      distribution,
+      average: typeof results?.average === "number" ? results.average : null,
+      agreement: typeof results?.agreement === "number" ? results.agreement : 0,
+      total_voters:
+        typeof results?.total_voters === "number"
+          ? results.total_voters
+          : votes.length,
+      final_estimate: results?.final_estimate ?? null,
+      fastest_voter: results?.fastest_voter ?? null,
+      slowest_voter: results?.slowest_voter ?? null,
+    };
+  }, []);
 
   // Store callbacks in ref to avoid recreating registerSocketEvents
   const callbacksRef = useRef({
@@ -201,21 +328,35 @@ export function useGameSocket(options: UseGameSocketOptions) {
       });
 
       // Game state sync
-      socket.on(ServerEvents.GAME_STATE_SYNC, (state: GameState) => {
-        logger.log("Game state synced:", state);
-        setGameState(state);
+      socket.on(ServerEvents.GAME_STATE, (state: GameState) => {
+        const normalizedState = normalizeGameState(state);
+
+        logger.log("Game state synced:", normalizedState);
+        setGameState(normalizedState);
       });
 
       // Player events
       socket.on(
         ServerEvents.PLAYER_JOINED,
-        ({ user }: { user: PlayerInfo }) => {
-          logger.log("Player joined:", user.display_name);
+        ({ user }: { user: BackendPlayerInfo }) => {
+          const normalizedUser = normalizeGameState({
+            game: null,
+            players: [user],
+            current_round: null,
+            timer: null,
+          }).players[0];
+
+          logger.log("Player joined:", normalizedUser.display_name);
           updateGameState((prev) => {
             if (!prev) return prev;
-            return { ...prev, players: [...prev.players, user] };
+            if (
+              prev.players.some((p) => p.user_id === normalizedUser.user_id)
+            ) {
+              return prev;
+            }
+            return { ...prev, players: [...prev.players, normalizedUser] };
           });
-          callbacksRef.current.onPlayerJoined?.(user);
+          callbacksRef.current.onPlayerJoined?.(normalizedUser);
         },
       );
 
@@ -279,16 +420,25 @@ export function useGameSocket(options: UseGameSocketOptions) {
       );
 
       socket.on(ServerEvents.CARDS_REVEALED, (results: VotingResults) => {
-        logger.log("Cards revealed:", results);
+        const normalizedResults = normalizeVotingResults(results);
+
+        logger.log("Cards revealed:", normalizedResults);
         updateGameState((prev) => {
           if (!prev || !prev.current_round) return prev;
+          const votes = normalizedResults.votes.reduce<Record<string, string>>(
+            (allVotes, vote) => {
+              allVotes[vote.user_id] = vote.card_value;
+              return allVotes;
+            },
+            {},
+          );
+
           return {
             ...prev,
-            current_round: { ...prev.current_round, is_revealed: true },
-            players: prev.players.map((p) => ({ ...p, has_voted: false })),
+            current_round: { ...prev.current_round, votes, is_revealed: true },
           };
         });
-        callbacksRef.current.onCardsRevealed?.(results);
+        callbacksRef.current.onCardsRevealed?.(normalizedResults);
       });
 
       socket.on(
@@ -354,19 +504,43 @@ export function useGameSocket(options: UseGameSocketOptions) {
       // Issue events
       socket.on(ServerEvents.ISSUE_ADDED, ({ issue }: { issue: any }) => {
         logger.log("Issue added:", issue);
-        // Parent component should refetch issues list
+        updateGameState((prev) => {
+          if (!prev) return prev;
+          if (
+            prev.issues?.some((existingIssue) => existingIssue.id === issue.id)
+          ) {
+            return prev;
+          }
+          return { ...prev, issues: [...(prev.issues || []), issue] };
+        });
       });
 
       socket.on(ServerEvents.ISSUE_UPDATED, ({ issue }: { issue: any }) => {
         logger.log("Issue updated:", issue);
-        // Parent component should refetch issues list
+        updateGameState((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            issues: (prev.issues || []).map((existingIssue) =>
+              existingIssue.id === issue.id ? issue : existingIssue,
+            ),
+          };
+        });
       });
 
       socket.on(
         ServerEvents.ISSUE_DELETED,
         ({ issue_id }: { issue_id: string }) => {
           logger.log("Issue deleted:", issue_id);
-          // Parent component should refetch issues list
+          updateGameState((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              issues: (prev.issues || []).filter(
+                (issue) => issue.id !== issue_id,
+              ),
+            };
+          });
         },
       );
 
@@ -391,7 +565,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
         callbacksRef.current.onError?.(message);
       });
     },
-    [gameId, updateGameState],
+    [gameId, normalizeGameState, normalizeVotingResults, updateGameState],
   );
 
   // Initialize socket connection
@@ -432,11 +606,12 @@ export function useGameSocket(options: UseGameSocketOptions) {
         return;
       }
       socket.emit(ClientEvents.SUBMIT_VOTE, {
+        game_id: gameId,
         round_id: gameState.current_round.id,
         card_value: cardValue,
       });
     },
-    [socket, gameState],
+    [socket, gameState, gameId],
   );
 
   const revealCards = useCallback(() => {
@@ -445,9 +620,10 @@ export function useGameSocket(options: UseGameSocketOptions) {
       return;
     }
     socket.emit(ClientEvents.REVEAL_CARDS, {
+      game_id: gameId,
       round_id: gameState.current_round.id,
     });
-  }, [socket, gameState]);
+  }, [socket, gameState, gameId]);
 
   const startNewRound = useCallback(
     (issueId?: string) => {
@@ -515,7 +691,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
       }
       socket.emit(ClientEvents.ADD_ISSUE, {
         game_id: gameId,
-        title,
+        issue_title: title,
       });
     },
     [socket, gameId],

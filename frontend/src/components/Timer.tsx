@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Clock3, Pause, Play, Square, X } from "lucide-react";
 
 interface TimerProps {
   isOpen: boolean;
@@ -13,6 +14,22 @@ interface TimerProps {
   timeIssuesEnabled: boolean;
   onToggleTimeIssues: (enabled: boolean) => void;
 }
+
+const formatTime = (totalSeconds: number) => {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes.toString().padStart(2, "0")}:${seconds
+    .toString()
+    .padStart(2, "0")}`;
+};
+
+const primaryButtonStyle = {
+  background:
+    "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
+  color: "white",
+  boxShadow:
+    "0 16px 40px -24px color-mix(in srgb, var(--primary) 70%, transparent)",
+} as const;
 
 export default function Timer({
   isOpen,
@@ -28,14 +45,6 @@ export default function Timer({
   const [minutes, setMinutes] = useState(45);
   const [seconds, setSeconds] = useState(0);
 
-  // Format remaining time for display
-  const formatTime = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
-
-  // Update input fields when timer is running
   useEffect(() => {
     if (remainingSeconds !== null && !isRunning) {
       setMinutes(Math.floor(remainingSeconds / 60));
@@ -51,187 +60,220 @@ export default function Timer({
   };
 
   const handleMinutesChange = (value: string) => {
-    const num = parseInt(value) || 0;
-    setMinutes(Math.max(0, Math.min(999, num)));
+    const valueAsNumber = parseInt(value, 10) || 0;
+    setMinutes(Math.max(0, Math.min(999, valueAsNumber)));
   };
 
   const handleSecondsChange = (value: string) => {
-    const num = parseInt(value) || 0;
-    setSeconds(Math.max(0, Math.min(59, num)));
+    const valueAsNumber = parseInt(value, 10) || 0;
+    setSeconds(Math.max(0, Math.min(59, valueAsNumber)));
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-[#0f1729] rounded-xl p-6 w-full max-w-md border border-gray-700">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold flex items-center gap-2">
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "var(--bg-overlay)" }}
+    >
+      <div
+        className="w-full max-w-md rounded-lg border shadow-theme-strong"
+        style={{
+          backgroundColor: "var(--surface-primary)",
+          borderColor: "var(--border-color)",
+          color: "var(--text-primary)",
+        }}
+      >
+        <div
+          className="flex items-center justify-between border-b p-5"
+          style={{ borderColor: "var(--border-color)" }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-lg"
+              style={{
+                backgroundColor: "var(--surface-accent)",
+                color: "var(--primary)",
+              }}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            Timer
-          </h2>
+              <Clock3 className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Timer</h2>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                {isRunning ? "Running" : remainingSeconds ? "Paused" : "Ready"}
+              </p>
+            </div>
+          </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border"
+            style={{
+              backgroundColor: "var(--surface-secondary)",
+              borderColor: "var(--border-color)",
+            }}
+            aria-label="Close timer"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Timer Display */}
-        <div className="mb-6">
+        <div className="p-5">
           {isRunning && remainingSeconds !== null ? (
-            // Running timer display
             <div className="text-center">
-              <div className="text-6xl font-bold mb-4 font-mono">
+              <div
+                className="mb-5 rounded-lg border py-6 font-mono text-6xl font-bold"
+                style={{
+                  backgroundColor: "var(--surface-secondary)",
+                  borderColor: "var(--border-subtle)",
+                }}
+              >
                 {formatTime(remainingSeconds)}
               </div>
-              <div className="flex gap-3 justify-center">
+              <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={onPause}
-                  className="px-6 py-3 bg-yellow-600 hover:bg-yellow-700 rounded-lg transition-colors font-medium flex items-center gap-2"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-3 font-semibold"
+                  style={{
+                    backgroundColor: "var(--surface-secondary)",
+                    borderColor: "var(--border-color)",
+                    color: "var(--warning)",
+                  }}
                 >
-                  <svg
-                    className="w-5 h-5"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-                  </svg>
+                  <Pause className="h-4 w-4" />
                   Pause
                 </button>
                 <button
                   onClick={onStop}
-                  className="px-6 py-3 bg-red-600 hover:bg-red-700 rounded-lg transition-colors font-medium flex items-center gap-2"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-3 font-semibold"
+                  style={{
+                    backgroundColor:
+                      "color-mix(in srgb, var(--danger) 12%, transparent)",
+                    borderColor: "var(--danger)",
+                    color: "var(--danger)",
+                  }}
                 >
-                  <svg
-                    className="w-5 h-5"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M6 6h12v12H6z" />
-                  </svg>
+                  <Square className="h-4 w-4" />
                   Stop
                 </button>
               </div>
             </div>
           ) : (
-            // Timer setup
             <div>
-              <div className="flex items-center justify-center gap-4 mb-6">
-                {/* Minutes Input */}
-                <div className="flex flex-col items-center">
-                  <label className="text-sm text-gray-400 mb-2">Minutes</label>
+              <div className="mb-5 grid grid-cols-[1fr_auto_1fr] items-end gap-3">
+                <label className="block">
+                  <span
+                    className="mb-2 block text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Minutes
+                  </span>
                   <input
                     type="number"
                     min="0"
                     max="999"
                     value={minutes}
-                    onChange={(e) => handleMinutesChange(e.target.value)}
-                    className="w-24 px-4 py-3 bg-gray-700 rounded-lg border border-gray-600 text-center text-2xl font-bold focus:outline-none focus:border-blue-500"
-                    disabled={isRunning}
+                    onChange={(event) =>
+                      handleMinutesChange(event.target.value)
+                    }
+                    className="w-full rounded-lg px-4 py-3 text-center text-2xl font-bold"
                   />
-                </div>
+                </label>
 
-                <span className="text-3xl font-bold mt-6">:</span>
+                <span
+                  className="pb-3 text-3xl font-bold"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  :
+                </span>
 
-                {/* Seconds Input */}
-                <div className="flex flex-col items-center">
-                  <label className="text-sm text-gray-400 mb-2">Seconds</label>
+                <label className="block">
+                  <span
+                    className="mb-2 block text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Seconds
+                  </span>
                   <input
                     type="number"
                     min="0"
                     max="59"
                     value={seconds}
-                    onChange={(e) => handleSecondsChange(e.target.value)}
-                    className="w-24 px-4 py-3 bg-gray-700 rounded-lg border border-gray-600 text-center text-2xl font-bold focus:outline-none focus:border-blue-500"
-                    disabled={isRunning}
+                    onChange={(event) =>
+                      handleSecondsChange(event.target.value)
+                    }
+                    className="w-full rounded-lg px-4 py-3 text-center text-2xl font-bold"
                   />
-                </div>
+                </label>
               </div>
 
               <button
                 onClick={handleStart}
                 disabled={minutes === 0 && seconds === 0}
-                className="w-full px-6 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                style={primaryButtonStyle}
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+                <Play className="h-4 w-4" />
                 Start Timer
               </button>
             </div>
           )}
-        </div>
 
-        {/* Time Issues Toggle */}
-        <div className="border-t border-gray-700 pt-4">
-          <label className="flex items-center justify-between cursor-pointer">
+          <label
+            className="mt-5 flex cursor-pointer items-center justify-between rounded-lg border p-3"
+            style={{
+              backgroundColor: "var(--surface-secondary)",
+              borderColor: "var(--border-subtle)",
+            }}
+          >
             <div>
               <div className="font-medium">Time issues</div>
-              <div className="text-sm text-gray-400">
-                Automatically reset timer after each voting round
+              <div
+                className="text-sm"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                Reset the timer after each round
               </div>
             </div>
-            <div className="relative">
+            <span
+              className="relative inline-flex h-6 w-11 items-center rounded-full"
+              style={{
+                backgroundColor: timeIssuesEnabled
+                  ? "var(--primary)"
+                  : "var(--surface-tertiary)",
+              }}
+            >
               <input
                 type="checkbox"
                 checked={timeIssuesEnabled}
-                onChange={(e) => onToggleTimeIssues(e.target.checked)}
-                className="sr-only peer"
+                onChange={(event) => onToggleTimeIssues(event.target.checked)}
+                className="sr-only"
               />
-              <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-            </div>
+              <span
+                className="inline-block h-5 w-5 rounded-full bg-white transition-transform"
+                style={{
+                  transform: timeIssuesEnabled
+                    ? "translateX(22px)"
+                    : "translateX(2px)",
+                }}
+              />
+            </span>
           </label>
-        </div>
 
-        {/* Timer Alert Info */}
-        {remainingSeconds !== null && remainingSeconds <= 60 && isRunning && (
-          <div className="mt-4 p-3 bg-yellow-900 bg-opacity-30 border border-yellow-700 rounded-lg flex items-start gap-2">
-            <svg
-              className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5"
-              fill="currentColor"
-              viewBox="0 0 20 20"
+          {remainingSeconds !== null && remainingSeconds <= 60 && isRunning && (
+            <div
+              className="mt-4 rounded-lg border px-3 py-2 text-sm"
+              style={{
+                backgroundColor:
+                  "color-mix(in srgb, var(--warning) 12%, transparent)",
+                borderColor: "var(--warning)",
+                color: "var(--warning)",
+              }}
             >
-              <path
-                fillRule="evenodd"
-                d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                clipRule="evenodd"
-              />
-            </svg>
-            <div className="text-sm text-yellow-200">
-              Less than 1 minute remaining!
+              Less than 1 minute remaining.
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

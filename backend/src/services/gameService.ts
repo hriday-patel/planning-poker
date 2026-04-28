@@ -16,7 +16,46 @@ import {
   GAME_VALIDATION,
 } from "../types/game.types";
 import { logger } from "../utils/logger";
-import { getDeckById, getDefaultDeck } from "./deckService";
+import { getDeckById, getDeckByName, getDefaultDeck } from "./deckService";
+
+interface VotingSpeedStat {
+  user_id: string;
+  display_name: string;
+  seconds: number;
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const VOTING_SYSTEM_NAMES: Record<string, string> = {
+  fibonacci: "Fibonacci",
+  modifiedfibonacci: "Modified Fibonacci",
+  tshirts: "T-shirts",
+  powersof2: "Powers of 2",
+};
+
+const normalizeVotingSystem = (value: string) => {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+};
+
+const resolveDeck = async (deckIdentifier?: string) => {
+  if (!deckIdentifier) {
+    return await getDefaultDeck();
+  }
+
+  const normalizedIdentifier = normalizeVotingSystem(deckIdentifier);
+  const deckName = VOTING_SYSTEM_NAMES[normalizedIdentifier];
+
+  if (deckName) {
+    return await getDeckByName(deckName);
+  }
+
+  if (UUID_PATTERN.test(deckIdentifier)) {
+    return await getDeckById(deckIdentifier);
+  }
+
+  return await getDeckByName(deckIdentifier);
+};
 
 /**
  * Create a new game
@@ -37,25 +76,12 @@ export const createGame = async (
       );
     }
 
-    // Validate voting system (deck)
-    let deckId = payload.deck_id;
-
-    if (!deckId) {
-      // Use default deck if not specified
-      const defaultDeck = await getDefaultDeck();
-      if (!defaultDeck) {
-        throw new Error(
-          "Default deck not found. Please initialize system decks.",
-        );
-      }
-      deckId = defaultDeck.id;
-    } else {
-      // Verify deck exists
-      const deck = await getDeckById(deckId);
-      if (!deck) {
-        throw new Error("Invalid voting system selected");
-      }
+    const deck = await resolveDeck(payload.deck_id || payload.voting_system);
+    if (!deck) {
+      throw new Error("Invalid voting system selected");
     }
+
+    const deckId = deck.id;
 
     // Set default values for optional fields
     const whoCanReveal = payload.who_can_reveal || GamePermission.ALL_PLAYERS;
@@ -429,7 +455,10 @@ export interface VotingHistoryEntry {
     user_id: string;
     display_name: string;
     card_value: string;
+    submitted_at: string;
   }>;
+  fastest_voter: VotingSpeedStat | null;
+  slowest_voter: VotingSpeedStat | null;
 }
 
 export const getGameVotingHistory = async (
@@ -450,9 +479,10 @@ export const getGameVotingHistory = async (
           json_build_object(
             'user_id', v.user_id,
             'display_name', u.display_name,
-            'card_value', v.card_value
+            'card_value', v.card_value,
+            'submitted_at', v.submitted_at
           ) ORDER BY v.submitted_at
-        ) as votes
+        ) FILTER (WHERE v.id IS NOT NULL) as votes
       FROM voting_rounds vr
       LEFT JOIN issues i ON vr.issue_id = i.id
       LEFT JOIN votes v ON vr.id = v.round_id
@@ -465,16 +495,46 @@ export const getGameVotingHistory = async (
       [gameId],
     );
 
-    return result.rows.map((row) => ({
-      round_id: row.round_id,
-      issue_id: row.issue_id,
-      issue_title: row.issue_title,
-      started_at: row.started_at,
-      revealed_at: row.revealed_at,
-      final_estimate: row.final_estimate,
-      vote_count: parseInt(row.vote_count),
-      votes: row.votes || [],
-    }));
+    return result.rows.map((row) => {
+      const startedAt = new Date(row.started_at).getTime();
+      const votes = row.votes || [];
+      const voteSpeeds = votes
+        .map((vote: any) => {
+          if (!vote.submitted_at) {
+            return null;
+          }
+
+          return {
+            user_id: vote.user_id,
+            display_name: vote.display_name,
+            seconds:
+              Math.round(
+                ((new Date(vote.submitted_at).getTime() - startedAt) / 1000) *
+                  10,
+              ) / 10,
+          };
+        })
+        .filter((vote: VotingSpeedStat | null): vote is VotingSpeedStat =>
+          Boolean(vote),
+        )
+        .sort(
+          (first: VotingSpeedStat, second: VotingSpeedStat) =>
+            first.seconds - second.seconds,
+        );
+
+      return {
+        round_id: row.round_id,
+        issue_id: row.issue_id,
+        issue_title: row.issue_title,
+        started_at: row.started_at,
+        revealed_at: row.revealed_at,
+        final_estimate: row.final_estimate,
+        vote_count: parseInt(row.vote_count),
+        votes,
+        fastest_voter: voteSpeeds[0] || null,
+        slowest_voter: voteSpeeds[voteSpeeds.length - 1] || null,
+      };
+    });
   } catch (error) {
     logger.error("Error fetching game voting history:", error);
     throw error;
