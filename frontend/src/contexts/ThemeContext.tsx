@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 type Theme = "dark" | "light";
 
@@ -15,6 +22,10 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const STORAGE_KEY = "planit-theme";
 
 const applyTheme = (theme: Theme) => {
+  if (typeof document === "undefined") {
+    return;
+  }
+
   document.documentElement.classList.remove("light", "dark");
   document.documentElement.classList.add(theme);
   document.documentElement.dataset.theme = theme;
@@ -26,9 +37,13 @@ const getStoredTheme = (): Theme | null => {
     return null;
   }
 
-  const storedTheme = localStorage.getItem(STORAGE_KEY);
-  if (storedTheme === "light" || storedTheme === "dark") {
-    return storedTheme;
+  try {
+    const storedTheme = localStorage.getItem(STORAGE_KEY);
+    if (storedTheme === "light" || storedTheme === "dark") {
+      return storedTheme;
+    }
+  } catch (_error) {
+    return null;
   }
 
   return null;
@@ -46,10 +61,14 @@ const getPreferredTheme = (): Theme => {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("dark");
+  const [hasStoredPreference, setHasStoredPreference] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const initialTheme = getStoredTheme() || getPreferredTheme();
+    const storedTheme = getStoredTheme();
+    const initialTheme = storedTheme || getPreferredTheme();
+
+    setHasStoredPreference(Boolean(storedTheme));
     setThemeState(initialTheme);
     applyTheme(initialTheme);
     setMounted(true);
@@ -61,16 +80,42 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
 
     applyTheme(theme);
-    localStorage.setItem(STORAGE_KEY, theme);
-  }, [theme, mounted]);
 
-  const setTheme = (nextTheme: Theme) => {
+    if (!hasStoredPreference) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(STORAGE_KEY, theme);
+    } catch (_error) {
+      return;
+    }
+  }, [theme, mounted, hasStoredPreference]);
+
+  useEffect(() => {
+    if (hasStoredPreference || typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: light)");
+    const handleSystemThemeChange = (event: MediaQueryListEvent) => {
+      setThemeState(event.matches ? "light" : "dark");
+    };
+
+    mediaQuery.addEventListener("change", handleSystemThemeChange);
+    return () =>
+      mediaQuery.removeEventListener("change", handleSystemThemeChange);
+  }, [hasStoredPreference]);
+
+  const setTheme = useCallback((nextTheme: Theme) => {
+    setHasStoredPreference(true);
     setThemeState(nextTheme);
-  };
+  }, []);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
+    setHasStoredPreference(true);
     setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
-  };
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -78,7 +123,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       toggleTheme,
       setTheme,
     }),
-    [theme],
+    [theme, toggleTheme, setTheme],
   );
 
   return (

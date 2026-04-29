@@ -1,8 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { Settings } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { apiFetch } from "@/lib/api";
+import {
+  Alert,
+  Avatar,
+  Button,
+  Card,
+  Field,
+  Input,
+  ModalFooter,
+  ModalHeader,
+  ModalShell,
+  Select,
+  ToggleRow,
+} from "@/components/ui";
 
 interface User {
   id: string;
@@ -28,8 +42,6 @@ export default function EditProfileModal({
   const [themePreference, setThemePreference] = useState(user.theme_preference);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const avatarLabel = user.display_name.charAt(0).toUpperCase();
 
   const handleSave = async () => {
     setIsLoading(true);
@@ -66,77 +78,24 @@ export default function EditProfileModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "var(--overlay)" }}
-    >
-      <div
-        className="w-full max-w-md rounded-[28px] border p-6 shadow-2xl"
-        style={{
-          backgroundColor: "var(--surface-elevated)",
-          borderColor: "var(--border-color)",
-          color: "var(--text-primary)",
-          boxShadow:
-            "0 40px 90px -48px color-mix(in srgb, var(--text-primary) 30%, transparent)",
-        }}
-      >
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Profile Settings</h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-2 transition-colors hover:opacity-80"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            <svg
-              className="h-6 w-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
+    <ModalShell isOpen onClose={onClose} maxWidthClassName="max-w-md">
+      <ModalHeader
+        icon={Settings}
+        title="Profile Settings"
+        subtitle="Update preferences used when joining planning sessions."
+        onClose={onClose}
+      />
 
-        {error && (
-          <div
-            className="mb-4 rounded-xl border p-3 text-sm"
-            style={{
-              backgroundColor:
-                "color-mix(in srgb, var(--danger) 12%, transparent)",
-              borderColor: "color-mix(in srgb, var(--danger) 36%, transparent)",
-              color: "var(--danger)",
-            }}
-          >
-            {error}
-          </div>
-        )}
+      <div className="space-y-5 overflow-y-auto p-5">
+        {error && <Alert variant="danger">{error}</Alert>}
 
-        <div className="mb-6">
-          <label className="mb-3 block text-sm font-medium">
-            Corporate Avatar
-          </label>
-          <div
-            className="flex items-center gap-4 rounded-2xl border p-4"
-            style={{
-              backgroundColor: "var(--surface-primary)",
-              borderColor: "var(--border-muted)",
-            }}
-          >
-            <div
-              className="flex h-20 w-20 items-center justify-center rounded-full text-2xl font-semibold text-white"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
-              }}
-            >
-              {avatarLabel}
-            </div>
+        <Field label="Corporate Avatar">
+          <Card className="flex items-center gap-4 p-4" variant="secondary">
+            <Avatar
+              name={user.display_name}
+              imageUrl={user.avatar_url}
+              size="lg"
+            />
             <div>
               <p className="font-medium">Static placeholder avatar</p>
               <p
@@ -146,103 +105,55 @@ export default function EditProfileModal({
                 Photo uploads are disabled for this application.
               </p>
             </div>
-          </div>
-        </div>
+          </Card>
+        </Field>
 
-        <div className="mb-6">
-          <label className="mb-2 block text-sm font-medium">Display Name</label>
-          <input
-            type="text"
-            value={user.display_name}
-            readOnly
-            className="w-full cursor-not-allowed rounded-xl border px-4 py-2"
-            style={{
-              backgroundColor: "var(--surface-primary)",
-              borderColor: "var(--border-muted)",
-              color: "var(--text-secondary)",
-            }}
-          />
-          <p className="mt-1 text-xs" style={{ color: "var(--text-tertiary)" }}>
-            Managed automatically from IBM Blue Pages after W3ID sign-in.
-          </p>
-        </div>
+        <Field
+          label="Display Name"
+          helperText="Managed automatically from IBM Blue Pages after W3ID sign-in."
+        >
+          <Input type="text" value={user.display_name} readOnly />
+        </Field>
 
-        <div className="mb-6">
-          <label className="mb-2 block text-sm font-medium">
-            Theme Preference
-          </label>
-          <select
+        <Field label="Theme Preference">
+          <Select
             value={themePreference}
             onChange={(e) => setThemePreference(e.target.value)}
-            className="w-full rounded-xl border px-4 py-2 outline-none transition-colors"
-            style={{
-              backgroundColor: "var(--surface-primary)",
-              borderColor: "var(--border-muted)",
-              color: "var(--text-primary)",
-            }}
           >
             <option value="dark">Dark</option>
             <option value="light">Light</option>
-          </select>
-        </div>
+          </Select>
+        </Field>
 
-        <div
-          className="mb-6 flex items-center justify-between rounded-2xl border p-4"
-          style={{
-            backgroundColor: "var(--surface-primary)",
-            borderColor: "var(--border-muted)",
-          }}
-        >
-          <div>
-            <p className="font-medium">Spectator Mode</p>
-            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-              Join games without casting votes.
-            </p>
-          </div>
-          <button
-            onClick={() => setSpectatorMode((prev) => !prev)}
-            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
-            style={{
-              backgroundColor: spectatorMode
-                ? "var(--primary)"
-                : "var(--border-strong)",
-            }}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                spectatorMode ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-        </div>
-
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={isLoading}
-            className="flex-1 rounded-xl border px-4 py-2 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              backgroundColor: "var(--surface-secondary)",
-              borderColor: "var(--border-color)",
-              color: "var(--text-primary)",
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={isLoading}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 font-medium text-white transition-transform disabled:cursor-not-allowed disabled:opacity-50"
-            style={{
-              background:
-                "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
-            }}
-          >
-            {isLoading ? "Saving..." : "Save Changes"}
-          </button>
-        </div>
+        <ToggleRow
+          checked={spectatorMode}
+          label="Spectator Mode"
+          description="Join games without casting votes."
+          onChange={setSpectatorMode}
+        />
       </div>
-    </div>
+
+      <ModalFooter layout="split">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={onClose}
+          disabled={isLoading}
+          className="w-full"
+        >
+          Cancel
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          onClick={handleSave}
+          isLoading={isLoading}
+          className="w-full"
+        >
+          Save Changes
+        </Button>
+      </ModalFooter>
+    </ModalShell>
   );
 }
 

@@ -1,34 +1,38 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui";
 
 export default function LegalPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-[#1a2035] text-white">
+    <div
+      className="min-h-screen"
+      style={{
+        backgroundColor: "var(--bg-primary)",
+        color: "var(--text-primary)",
+      }}
+    >
       {/* Navigation */}
-      <nav className="border-b border-gray-700">
+      <nav
+        className="border-b"
+        style={{
+          backgroundColor: "var(--surface-primary)",
+          borderColor: "var(--border-color)",
+        }}
+      >
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <button
+          <Button
+            type="button"
+            variant="ghost"
             onClick={() => router.push("/")}
-            className="flex items-center gap-2 hover:text-blue-400 transition-colors"
+            className="shadow-none"
           >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back to Home
-          </button>
+          </Button>
         </div>
       </nav>
 
@@ -36,10 +40,16 @@ export default function LegalPage() {
       <div className="container mx-auto px-6 py-12 max-w-4xl">
         <h1 className="text-4xl font-bold mb-8">Legal Notice</h1>
 
-        <div className="space-y-8 text-gray-300">
+        <div className="space-y-8" style={{ color: "var(--text-secondary)" }}>
           {/* Terms of Service */}
-          <section className="bg-[#0f1729] border border-gray-700 rounded-lg p-8">
-            <h2 className="text-2xl font-semibold mb-4 text-white">
+          <section
+            className="rounded-lg border p-8 shadow-theme"
+            style={{
+              backgroundColor: "var(--surface-primary)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            <h2 className="text-2xl font-semibold mb-4 text-theme-primary">
               Terms of Service
             </h2>
             <div className="space-y-4">
@@ -51,7 +61,7 @@ export default function LegalPage() {
                 application, you agree to be bound by these Terms of Service.
               </p>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 1. Acceptance of Terms
               </h3>
               <p>
@@ -60,7 +70,7 @@ export default function LegalPage() {
                 our Privacy Policy.
               </p>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 2. Use of Service
               </h3>
               <p>
@@ -69,7 +79,7 @@ export default function LegalPage() {
                 purposes and in accordance with these Terms.
               </p>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 3. User Accounts
               </h3>
               <p>
@@ -78,7 +88,7 @@ export default function LegalPage() {
                 confidentiality of your account credentials.
               </p>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 4. Intellectual Property
               </h3>
               <p>
@@ -87,7 +97,7 @@ export default function LegalPage() {
                 by copyright and other intellectual property laws.
               </p>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 5. Limitation of Liability
               </h3>
               <p>
@@ -97,7 +107,7 @@ export default function LegalPage() {
                 use of the service.
               </p>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 6. Changes to Terms
               </h3>
               <p>
@@ -109,8 +119,14 @@ export default function LegalPage() {
           </section>
 
           {/* Privacy Policy */}
-          <section className="bg-[#0f1729] border border-gray-700 rounded-lg p-8">
-            <h2 className="text-2xl font-semibold mb-4 text-white">
+          <section
+            className="rounded-lg border p-8 shadow-theme"
+            style={{
+              backgroundColor: "var(--surface-primary)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            <h2 className="text-2xl font-semibold mb-4 text-theme-primary">
               Privacy Policy
             </h2>
             <div className="space-y-4">
@@ -122,7 +138,7 @@ export default function LegalPage() {
                 and protects your personal information.
               </p>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 1. Information We Collect
               </h3>
               <p>
@@ -135,7 +151,7 @@ export default function LegalPage() {
                 <li>Usage data and analytics</li>
               </ul>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 2. How We Use Your Information
               </h3>
               <p>We use the information we collect to:</p>
@@ -148,7 +164,7 @@ export default function LegalPage() {
                 <li>Analyze usage patterns to improve the application</li>
               </ul>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 3. Data Security
               </h3>
               <p>
@@ -159,7 +175,7 @@ export default function LegalPage() {
                 databases.
               </p>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 4. Data Retention
               </h3>
               <p>
@@ -169,7 +185,7 @@ export default function LegalPage() {
                 indefinitely unless you request deletion.
               </p>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 5. Third-Party Services
               </h3>
               <p>
@@ -177,7 +193,7 @@ export default function LegalPage() {
                 W3ID is subject to IBM's privacy policy and terms of service.
               </p>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 6. Your Rights
               </h3>
               <p>You have the right to:</p>
@@ -188,7 +204,7 @@ export default function LegalPage() {
                 <li>Export your data</li>
               </ul>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 7. Changes to Privacy Policy
               </h3>
               <p>
@@ -200,8 +216,14 @@ export default function LegalPage() {
           </section>
 
           {/* Cookie Policy */}
-          <section className="bg-[#0f1729] border border-gray-700 rounded-lg p-8">
-            <h2 className="text-2xl font-semibold mb-4 text-white">
+          <section
+            className="rounded-lg border p-8 shadow-theme"
+            style={{
+              backgroundColor: "var(--surface-primary)",
+              borderColor: "var(--border-color)",
+            }}
+          >
+            <h2 className="text-2xl font-semibold mb-4 text-theme-primary">
               Cookie Policy
             </h2>
             <div className="space-y-4">
@@ -210,7 +232,7 @@ export default function LegalPage() {
                 and improve the service.
               </p>
 
-              <h3 className="text-xl font-semibold text-white mt-6 mb-2">
+              <h3 className="text-xl font-semibold text-theme-primary mt-6 mb-2">
                 Types of Cookies We Use
               </h3>
               <ul className="list-disc list-inside ml-4 space-y-2">
@@ -237,8 +259,14 @@ export default function LegalPage() {
           </section>
 
           {/* Contact Information */}
-          <section className="bg-blue-900 bg-opacity-30 border border-blue-700 rounded-lg p-8">
-            <h2 className="text-2xl font-semibold mb-4 text-white">
+          <section
+            className="rounded-lg border p-8 shadow-theme"
+            style={{
+              backgroundColor: "var(--info-bg)",
+              borderColor: "var(--info)",
+            }}
+          >
+            <h2 className="text-2xl font-semibold mb-4 text-theme-primary">
               Contact Us
             </h2>
             <p>
@@ -250,7 +278,8 @@ export default function LegalPage() {
                 <strong>Email:</strong>{" "}
                 <a
                   href="mailto:legal@planningpoker.com"
-                  className="text-blue-400 hover:text-blue-300"
+                  className="font-medium transition-opacity hover:opacity-80"
+                  style={{ color: "var(--primary)" }}
                 >
                   legal@planningpoker.com
                 </a>
@@ -259,7 +288,8 @@ export default function LegalPage() {
                 <strong>Support:</strong>{" "}
                 <a
                   href="mailto:support@planningpoker.com"
-                  className="text-blue-400 hover:text-blue-300"
+                  className="font-medium transition-opacity hover:opacity-80"
+                  style={{ color: "var(--primary)" }}
                 >
                   support@planningpoker.com
                 </a>

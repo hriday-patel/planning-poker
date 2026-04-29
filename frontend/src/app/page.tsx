@@ -1,13 +1,86 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
+import {
+  BarChart3,
+  Clock3,
+  Layers3,
+  LockKeyhole,
+  LogIn,
+  Plus,
+  ShieldCheck,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { apiFetch } from "@/lib/api";
+import { Badge, Button, Card, PageShell } from "@/components/ui";
 
 const ibmLogoUrl =
   process.env.NEXT_PUBLIC_IBM_LOGO_URL ||
   "https://upload.wikimedia.org/wikipedia/commons/5/51/IBM_logo.svg";
+
+type Feature = {
+  title: string;
+  description: string;
+  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  variant: "info" | "success" | "warning" | "neutral";
+};
+
+const proofPoints = [
+  ["Real-time", "Live voting and reveal flow"],
+  ["Secure", "IBM W3ID and Blue Pages identity"],
+  ["Shareable", "Simple URL invite links"],
+];
+
+const features: Feature[] = [
+  {
+    title: "Real-time Voting",
+    description:
+      "Instant synchronization across all participants with responsive WebSocket updates.",
+    icon: Users,
+    variant: "info",
+  },
+  {
+    title: "Completely Free",
+    description:
+      "Unlimited games and voting rounds with no premium tiers or usage caps.",
+    icon: Sparkles,
+    variant: "success",
+  },
+  {
+    title: "Enterprise Security",
+    description:
+      "Integrated IBM W3ID authentication and authoritative Blue Pages identity handling.",
+    icon: ShieldCheck,
+    variant: "neutral",
+  },
+  {
+    title: "Customizable Decks",
+    description:
+      "Support Fibonacci, T-shirt sizes, or a custom deck tailored to your workflow.",
+    icon: Layers3,
+    variant: "warning",
+  },
+  {
+    title: "Built-in Timer",
+    description:
+      "Keep discussions focused with synchronized countdown timers that reset cleanly.",
+    icon: Clock3,
+    variant: "neutral",
+  },
+  {
+    title: "Voting Analytics",
+    description:
+      "Review averages, consensus levels, and the full history of every session.",
+    icon: BarChart3,
+    variant: "info",
+  },
+];
+
+const deckValues = ["1", "2", "3", "5", "8", "13", "?"];
 
 export default function Home() {
   const router = useRouter();
@@ -41,473 +114,332 @@ export default function Home() {
     }
   };
 
-  const primaryButtonStyle = {
-    background:
-      "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
-    color: "white",
-    boxShadow:
-      "0 16px 40px -24px color-mix(in srgb, var(--primary) 70%, transparent)",
-  } as const;
-
   return (
-    <div
-      className="min-h-screen transition-colors"
-      style={{
-        background:
-          "radial-gradient(circle at top, color-mix(in srgb, var(--primary) 14%, transparent) 0%, transparent 34%), radial-gradient(circle at bottom right, color-mix(in srgb, var(--accent) 12%, transparent) 0%, transparent 26%), var(--bg-primary)",
-        color: "var(--text-primary)",
-      }}
-    >
+    <PageShell>
       <nav
-        className="border-b backdrop-blur supports-[backdrop-filter]:bg-[color:var(--overlay)]"
-        style={{ borderColor: "var(--border-color)" }}
+        className="border-b"
+        style={{
+          backgroundColor: "var(--surface-primary)",
+          borderColor: "var(--border-color)",
+        }}
       >
-        <div className="container mx-auto flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-2xl"
-              style={{
-                background:
-                  "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
-                color: "white",
-                boxShadow:
-                  "0 18px 40px -24px color-mix(in srgb, var(--primary) 70%, transparent)",
-              }}
+        <div className="container mx-auto flex items-center justify-between gap-4 px-6 py-4">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+              style={{ backgroundColor: "var(--primary)", color: "white" }}
             >
-              <svg
-                className="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                />
-              </svg>
-            </div>
-            <div>
-              <span className="text-xl font-semibold tracking-tight">
+              <Layers3 className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-lg font-semibold tracking-tight">
                 Planning Poker
               </span>
-              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+              <span
+                className="hidden text-xs sm:block"
+                style={{ color: "var(--text-tertiary)" }}
+              >
                 IBM-ready estimation for agile teams
-              </p>
-            </div>
-          </div>
+              </span>
+            </span>
+          </Link>
 
-          <div className="flex items-center gap-3">
-            <a
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <Link
               href="/faq"
-              className="rounded-lg px-3 py-2 text-sm transition-colors hover:opacity-80"
+              className="rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:opacity-80"
               style={{ color: "var(--text-secondary)" }}
             >
               FAQs
-            </a>
+            </Link>
             <ThemeToggle />
-            {isAuthenticated ? (
-              <button
-                onClick={() => router.push("/create")}
-                className="rounded-xl px-4 py-2 text-sm font-medium transition-transform hover:-translate-y-0.5"
-                style={primaryButtonStyle}
-              >
-                Create Game
-              </button>
-            ) : (
-              <button
-                onClick={() => router.push("/login")}
-                className="rounded-xl px-4 py-2 text-sm font-medium transition-transform hover:-translate-y-0.5"
-                style={primaryButtonStyle}
-              >
-                Sign In
-              </button>
-            )}
+            <Button
+              type="button"
+              size="sm"
+              onClick={() =>
+                router.push(isAuthenticated ? "/create" : "/login")
+              }
+              className="hidden sm:inline-flex"
+            >
+              {isAuthenticated ? (
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <LogIn className="h-4 w-4" aria-hidden="true" />
+              )}
+              {isAuthenticated ? "Create Game" : "Sign In"}
+            </Button>
           </div>
         </div>
       </nav>
 
-      <section className="container mx-auto px-6 py-20">
-        <div className="grid items-center gap-12 md:grid-cols-2">
+      <main>
+        <section className="container mx-auto grid items-center gap-10 px-6 pb-10 pt-10 lg:grid-cols-[1fr_0.9fr] lg:pb-12 lg:pt-14">
           <div>
-            <div
-              className="mb-6 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm"
-              style={{
-                backgroundColor: "var(--surface-secondary)",
-                borderColor: "var(--border-muted)",
-                color: "var(--text-secondary)",
-              }}
-            >
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ backgroundColor: "var(--accent)" }}
-              />
+            <Badge variant="info" className="mb-5 inline-flex">
+              <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
               Secure collaboration with IBM W3ID
-            </div>
+            </Badge>
 
-            <h1 className="mb-6 text-5xl font-bold leading-tight md:text-6xl">
-              Sprint Planning
-              <br />
-              <span style={{ color: "var(--primary)" }}>Made Simple</span>
+            <h1 className="max-w-3xl text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">
+              Planning Poker for focused sprint estimates
             </h1>
 
             <p
-              className="mb-8 max-w-xl text-xl"
+              className="mt-5 max-w-2xl text-lg leading-8"
               style={{ color: "var(--text-secondary)" }}
             >
-              Real-time Planning Poker for agile teams. Estimate user stories
-              collaboratively with IBM-authenticated access, secure invite
-              links, and a polished workspace built for focus.
+              Real-time estimation for agile teams with authenticated access,
+              secure invite links, and a calm workspace built for repeated
+              planning sessions.
             </p>
 
-            <div className="flex flex-col gap-4 sm:flex-row">
-              <button
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Button
+                type="button"
+                size="lg"
                 onClick={handleStartGame}
-                className="flex items-center justify-center gap-2 rounded-2xl px-8 py-4 text-lg font-semibold transition-transform hover:-translate-y-0.5"
-                style={primaryButtonStyle}
+                className="w-full sm:w-auto"
               >
-                <svg
-                  className="h-6 w-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
+                <Plus className="h-5 w-5" aria-hidden="true" />
                 Start New Game
-              </button>
+              </Button>
 
-              <button
+              <Button
+                type="button"
+                size="lg"
+                variant="secondary"
                 onClick={() => router.push("/create?guest=1")}
-                className="rounded-2xl border px-8 py-4 text-center text-lg font-semibold transition-colors hover:opacity-80"
-                style={{
-                  backgroundColor: "var(--surface-primary)",
-                  borderColor: "var(--border-color)",
-                  color: "var(--text-primary)",
-                }}
+                className="w-full sm:w-auto"
               >
+                <Users className="h-5 w-5" aria-hidden="true" />
                 Try as Guest
-              </button>
+              </Button>
             </div>
 
-            <div className="mt-10 grid gap-4 sm:grid-cols-3">
-              {[
-                ["Real-time", "Live voting and reveal flow"],
-                ["Secure", "IBM W3ID and Blue Pages identity"],
-                ["Shareable", "Simple URL invite links"],
-              ].map(([title, description]) => (
-                <div
-                  key={title}
-                  className="rounded-2xl border p-4"
-                  style={{
-                    backgroundColor: "var(--surface-secondary)",
-                    borderColor: "var(--border-muted)",
-                  }}
-                >
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              {proofPoints.map(([title, description]) => (
+                <Card key={title} className="p-4" variant="secondary">
                   <p className="font-semibold">{title}</p>
                   <p
-                    className="mt-1 text-sm"
+                    className="mt-1 text-sm leading-6"
                     style={{ color: "var(--text-tertiary)" }}
                   >
                     {description}
                   </p>
-                </div>
+                </Card>
               ))}
             </div>
           </div>
 
-          <div className="relative">
-            <div
-              className="rounded-[28px] border p-6 shadow-2xl"
-              style={{
-                backgroundColor: "var(--surface-elevated)",
-                borderColor: "var(--border-color)",
-                boxShadow:
-                  "0 40px 90px -48px color-mix(in srgb, var(--text-primary) 30%, transparent)",
-              }}
-            >
-              <div
-                className="mb-5 flex items-center justify-between rounded-2xl border px-4 py-3"
-                style={{
-                  backgroundColor: "var(--surface-primary)",
-                  borderColor: "var(--border-muted)",
-                }}
-              >
-                <div>
-                  <p className="text-sm font-semibold">Sprint 24 Estimation</p>
-                  <p
-                    className="text-xs"
-                    style={{ color: "var(--text-tertiary)" }}
-                  >
-                    Connected team workspace
-                  </p>
-                </div>
-                <div
-                  className="rounded-full px-3 py-1 text-xs font-medium"
-                  style={{
-                    backgroundColor:
-                      "color-mix(in srgb, var(--success) 18%, transparent)",
-                    color: "var(--success)",
-                  }}
-                >
-                  Live
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className="grid grid-cols-3 gap-4">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="flex flex-col items-center gap-3 rounded-2xl p-4 animate-pulse"
-                      style={{
-                        animationDelay: `${i * 200}ms`,
-                        backgroundColor: "var(--surface-primary)",
-                        border: "1px solid var(--border-subtle)",
-                      }}
-                    >
-                      <div
-                        className="flex h-14 w-14 items-center justify-center rounded-full text-sm font-semibold"
-                        style={{
-                          backgroundColor:
-                            i === 2 ? "var(--accent)" : "var(--primary)",
-                          color: "white",
-                        }}
-                      >
-                        {["AK", "RM", "JS"][i - 1]}
-                      </div>
-                      <div
-                        className="flex h-20 w-14 items-center justify-center rounded-2xl text-lg font-bold text-white"
-                        style={{
-                          background:
-                            i === 2
-                              ? "linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 72%, black 28%))"
-                              : "linear-gradient(180deg, var(--primary), color-mix(in srgb, var(--primary) 72%, black 28%))",
-                        }}
-                      >
-                        {["5", "8", "?"][i - 1]}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="text-center">
-                  <div
-                    className="inline-flex rounded-xl px-8 py-3 font-medium text-white"
-                    style={primaryButtonStyle}
-                  >
-                    Reveal Cards
-                  </div>
-                </div>
-
-                <div className="flex justify-center gap-2 overflow-x-auto">
-                  {["1", "2", "3", "5", "8", "13", "?"].map((value) => (
-                    <div
-                      key={value}
-                      className="flex h-16 w-12 cursor-pointer items-center justify-center rounded-xl border font-bold transition-transform hover:-translate-y-1"
-                      style={{
-                        backgroundColor: "var(--surface-primary)",
-                        borderColor:
-                          value === "8"
-                            ? "var(--primary)"
-                            : "var(--border-muted)",
-                        color:
-                          value === "8"
-                            ? "var(--primary)"
-                            : "var(--text-secondary)",
-                      }}
-                    >
-                      {value}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div
-              className="absolute -right-4 -top-4 h-24 w-24 rounded-full opacity-20 blur-2xl"
-              style={{ backgroundColor: "var(--primary)" }}
-            />
-            <div
-              className="absolute -bottom-4 -left-4 h-20 w-20 rounded-full opacity-20 blur-2xl"
-              style={{ backgroundColor: "var(--accent)" }}
-            />
-          </div>
-        </div>
-      </section>
-
-      <section
-        id="features"
-        className="py-20"
-        style={{ backgroundColor: "var(--bg-secondary)" }}
-      >
-        <div className="container mx-auto px-6">
-          <h2 className="mb-4 text-center text-4xl font-bold">
-            Why Teams Love Planning Poker
-          </h2>
-          <p
-            className="mx-auto mb-12 max-w-2xl text-center"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            A minimal, enterprise-friendly workflow for planning sessions that
-            stay fast, secure, and aligned.
-          </p>
-
-          <div className="grid gap-8 md:grid-cols-3">
-            {[
-              {
-                title: "Real-time Voting",
-                description:
-                  "Instant synchronization across all participants with responsive WebSocket updates.",
-                color: "var(--primary)",
-                icon: "M13 10V3L4 14h7v7l9-11h-7z",
-              },
-              {
-                title: "Completely Free",
-                description:
-                  "Unlimited games and unlimited voting rounds with no premium tiers or usage caps.",
-                color: "var(--success)",
-                icon: "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-              },
-              {
-                title: "Enterprise Security",
-                description:
-                  "Integrated IBM W3ID authentication and authoritative Blue Pages identity handling.",
-                color: "var(--accent)",
-                icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z",
-              },
-              {
-                title: "Customizable Decks",
-                description:
-                  "Support Fibonacci, T-shirt sizes, or a custom deck tailored to your workflow.",
-                color: "var(--warning)",
-                icon: "M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01",
-              },
-              {
-                title: "Built-in Timer",
-                description:
-                  "Keep discussions focused with synchronized countdown timers that reset cleanly.",
-                color: "var(--danger)",
-                icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z",
-              },
-              {
-                title: "Voting Analytics",
-                description:
-                  "Review averages, consensus levels, and the full history of every session.",
-                color: "var(--secondary)",
-                icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-              },
-            ].map((feature) => (
-              <div
-                key={feature.title}
-                className="rounded-3xl border p-8"
-                style={{
-                  backgroundColor: "var(--surface-primary)",
-                  borderColor: "var(--border-color)",
-                }}
-              >
-                <div
-                  className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl text-white"
-                  style={{ backgroundColor: feature.color }}
-                >
-                  <svg
-                    className="h-6 w-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d={feature.icon}
-                    />
-                  </svg>
-                </div>
-                <h3 className="mb-3 text-xl font-semibold">{feature.title}</h3>
-                <p style={{ color: "var(--text-tertiary)" }}>
-                  {feature.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="py-20">
-        <div className="container mx-auto px-6">
           <div
-            className="mx-auto max-w-4xl rounded-[32px] border px-8 py-12 text-center"
+            className="rounded-lg border p-4 shadow-theme"
             style={{
-              backgroundColor: "var(--surface-primary)",
+              backgroundColor: "var(--surface-elevated)",
               borderColor: "var(--border-color)",
             }}
           >
-            <p
-              className="mb-4 text-sm font-semibold uppercase tracking-[0.2em]"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              Trusted enterprise foundation
-            </p>
-            <h2 className="mb-3 text-3xl font-bold">Built for IBM teams</h2>
-            <p
-              className="mx-auto mb-8 max-w-xl"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Authenticated access, corporate identity consistency, and secure
-              collaboration flows designed around IBM's ecosystem.
-            </p>
             <div
-              className="inline-flex items-center justify-center rounded-3xl border px-10 py-6"
-              style={{
-                backgroundColor: "var(--surface-secondary)",
-                borderColor: "var(--border-muted)",
-              }}
+              className="flex items-center justify-between gap-4 border-b pb-4"
+              style={{ borderColor: "var(--border-subtle)" }}
             >
-              <img
-                src={ibmLogoUrl}
-                alt="IBM logo"
-                className="h-12 w-auto"
-                loading="lazy"
-                referrerPolicy="no-referrer"
-              />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">
+                  Sprint 24 Estimation
+                </p>
+                <p
+                  className="text-xs"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  Connected team workspace
+                </p>
+              </div>
+              <Badge variant="success">Live</Badge>
+            </div>
+
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              {[
+                ["AK", "5"],
+                ["RM", "8"],
+                ["JS", "?"],
+              ].map(([initials, value], index) => (
+                <div
+                  key={initials}
+                  className="flex flex-col items-center gap-3 rounded-lg border p-3"
+                  style={{
+                    animationDelay: `${index * 180}ms`,
+                    backgroundColor: "var(--surface-primary)",
+                    borderColor: "var(--border-subtle)",
+                  }}
+                >
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold"
+                    style={{
+                      backgroundColor:
+                        index === 1 ? "var(--accent)" : "var(--primary)",
+                      color: "white",
+                    }}
+                  >
+                    {initials}
+                  </div>
+                  <div
+                    className="flex h-20 w-14 items-center justify-center rounded-lg border text-lg font-bold"
+                    style={{
+                      backgroundColor:
+                        index === 1
+                          ? "var(--surface-accent)"
+                          : "var(--bg-muted)",
+                      borderColor:
+                        index === 1 ? "var(--primary)" : "var(--border-color)",
+                      color:
+                        index === 1 ? "var(--primary)" : "var(--text-primary)",
+                    }}
+                  >
+                    {value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-5 flex justify-center">
+              <Button type="button" size="sm" tabIndex={-1}>
+                Reveal Cards
+              </Button>
+            </div>
+
+            <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
+              {deckValues.map((value) => (
+                <div
+                  key={value}
+                  className="flex h-14 min-w-10 items-center justify-center rounded-lg border text-sm font-bold"
+                  style={{
+                    backgroundColor: "var(--surface-primary)",
+                    borderColor:
+                      value === "8" ? "var(--primary)" : "var(--border-subtle)",
+                    color:
+                      value === "8"
+                        ? "var(--primary)"
+                        : "var(--text-secondary)",
+                  }}
+                >
+                  {value}
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section
-        className="py-20"
-        style={{
-          background:
-            "linear-gradient(135deg, color-mix(in srgb, var(--primary) 92%, black 8%) 0%, color-mix(in srgb, var(--accent) 78%, var(--primary) 22%) 100%)",
-          color: "white",
-        }}
-      >
-        <div className="container mx-auto px-6 text-center">
-          <h2 className="mb-6 text-4xl font-bold">
-            Ready to improve your sprint planning?
-          </h2>
-          <p className="mb-8 text-xl text-white/80">
-            Start a focused, secure estimation session in minutes.
-          </p>
-          <button
-            onClick={handleStartGame}
-            className="rounded-2xl bg-white px-8 py-4 text-lg font-semibold text-slate-900 transition-transform hover:-translate-y-0.5"
-          >
-            Start Your First Game
-          </button>
-        </div>
-      </section>
+        <section
+          id="features"
+          className="border-y py-16"
+          style={{
+            backgroundColor: "var(--bg-secondary)",
+            borderColor: "var(--border-color)",
+          }}
+        >
+          <div className="container mx-auto px-6">
+            <div className="mx-auto mb-10 max-w-2xl text-center">
+              <h2 className="text-3xl font-bold">
+                Everything a planning room needs
+              </h2>
+              <p
+                className="mt-3 leading-7"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                A minimal, enterprise-friendly workflow for sessions that stay
+                fast, secure, and aligned.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {features.map((feature) => {
+                const Icon = feature.icon;
+
+                return (
+                  <Card key={feature.title} className="p-5">
+                    <Badge variant={feature.variant} className="mb-4">
+                      <Icon className="h-3.5 w-3.5" aria-hidden={true} />
+                      {feature.title}
+                    </Badge>
+                    <p
+                      className="text-sm leading-6"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      {feature.description}
+                    </p>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="py-14">
+          <div className="container mx-auto px-6">
+            <div className="grid items-center gap-8 md:grid-cols-[1fr_auto]">
+              <div>
+                <p
+                  className="text-sm font-semibold uppercase tracking-wide"
+                  style={{ color: "var(--primary)" }}
+                >
+                  Trusted enterprise foundation
+                </p>
+                <h2 className="mt-2 text-3xl font-bold">Built for IBM teams</h2>
+                <p
+                  className="mt-3 max-w-2xl leading-7"
+                  style={{ color: "var(--text-secondary)" }}
+                >
+                  Authenticated access, corporate identity consistency, and
+                  secure collaboration flows designed around IBM's ecosystem.
+                </p>
+              </div>
+              <div
+                className="inline-flex items-center justify-center rounded-lg border px-8 py-5"
+                style={{
+                  backgroundColor: "var(--surface-secondary)",
+                  borderColor: "var(--border-subtle)",
+                }}
+              >
+                <img
+                  src={ibmLogoUrl}
+                  alt="IBM logo"
+                  className="h-10 w-auto"
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          className="border-y py-14"
+          style={{
+            backgroundColor: "var(--surface-accent)",
+            borderColor: "var(--border-color)",
+          }}
+        >
+          <div className="container mx-auto flex flex-col items-start justify-between gap-6 px-6 md:flex-row md:items-center">
+            <div>
+              <h2 className="text-3xl font-bold">
+                Ready to improve your sprint planning?
+              </h2>
+              <p
+                className="mt-2 leading-7"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Start a focused, secure estimation session in minutes.
+              </p>
+            </div>
+            <Button type="button" size="lg" onClick={handleStartGame}>
+              <Plus className="h-5 w-5" aria-hidden="true" />
+              Start Your First Game
+            </Button>
+          </div>
+        </section>
+      </main>
 
       <footer
-        className="border-t py-12"
+        className="border-t py-10"
         style={{
           backgroundColor: "var(--bg-secondary)",
           borderColor: "var(--border-color)",
@@ -516,28 +448,13 @@ export default function Home() {
         <div className="container mx-auto px-6">
           <div className="grid gap-8 md:grid-cols-4">
             <div>
-              <div className="mb-4 flex items-center gap-3">
-                <div
-                  className="flex h-9 w-9 items-center justify-center rounded-2xl text-white"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
-                  }}
+              <div className="mb-3 flex items-center gap-3">
+                <span
+                  className="flex h-9 w-9 items-center justify-center rounded-lg"
+                  style={{ backgroundColor: "var(--primary)", color: "white" }}
                 >
-                  <svg
-                    className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                    />
-                  </svg>
-                </div>
+                  <Layers3 className="h-4 w-4" aria-hidden="true" />
+                </span>
                 <span className="font-semibold">Planning Poker</span>
               </div>
               <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
@@ -546,95 +463,71 @@ export default function Home() {
             </div>
 
             <div>
-              <h3 className="mb-4 font-semibold">Product</h3>
-              <ul
-                className="space-y-2 text-sm"
-                style={{ color: "var(--text-tertiary)" }}
-              >
+              <h3 className="mb-3 font-semibold">Product</h3>
+              <ul className="space-y-2 text-sm">
                 <li>
-                  <a
-                    href="#features"
-                    className="transition-colors hover:opacity-80"
-                  >
+                  <Link href="#features" className="hover:opacity-80">
                     Features
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a
-                    href="/create"
-                    className="transition-colors hover:opacity-80"
-                  >
+                  <Link href="/create" className="hover:opacity-80">
                     Create Game
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="/faq" className="transition-colors hover:opacity-80">
+                  <Link href="/faq" className="hover:opacity-80">
                     FAQs
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>
 
             <div>
-              <h3 className="mb-4 font-semibold">Support</h3>
-              <ul
-                className="space-y-2 text-sm"
-                style={{ color: "var(--text-tertiary)" }}
-              >
+              <h3 className="mb-3 font-semibold">Support</h3>
+              <ul className="space-y-2 text-sm">
                 <li>
-                  <a href="/faq" className="transition-colors hover:opacity-80">
+                  <Link href="/faq" className="hover:opacity-80">
                     Help Center
-                  </a>
+                  </Link>
                 </li>
                 <li>
                   <a
                     href="mailto:support@planningpoker.com"
-                    className="transition-colors hover:opacity-80"
+                    className="hover:opacity-80"
                   >
                     Contact Us
                   </a>
                 </li>
                 <li>
-                  <a
-                    href="/legal"
-                    className="transition-colors hover:opacity-80"
-                  >
+                  <Link href="/legal" className="hover:opacity-80">
                     Legal Notice
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>
 
             <div>
-              <h3 className="mb-4 font-semibold">Company</h3>
-              <ul
-                className="space-y-2 text-sm"
-                style={{ color: "var(--text-tertiary)" }}
-              >
+              <h3 className="mb-3 font-semibold">Company</h3>
+              <ul className="space-y-2 text-sm">
                 <li>
-                  <a
-                    href="/legal"
-                    className="transition-colors hover:opacity-80"
-                  >
+                  <Link href="/legal" className="hover:opacity-80">
                     Privacy Policy
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a
-                    href="/legal"
-                    className="transition-colors hover:opacity-80"
-                  >
+                  <Link href="/legal" className="hover:opacity-80">
                     Terms of Service
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </div>
           </div>
 
           <div
-            className="mt-8 border-t pt-8 text-center text-sm"
+            className="mt-8 border-t pt-6 text-center text-sm"
             style={{
-              borderColor: "var(--border-color)",
+              borderColor: "var(--border-subtle)",
               color: "var(--text-tertiary)",
             }}
           >
@@ -642,7 +535,7 @@ export default function Home() {
           </div>
         </div>
       </footer>
-    </div>
+    </PageShell>
   );
 }
 

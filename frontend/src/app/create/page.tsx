@@ -1,8 +1,18 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, ChevronDown, SlidersHorizontal } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import {
+  Alert,
+  Button,
+  Card,
+  Field,
+  Input,
+  Select,
+  ToggleRow,
+} from "@/components/ui";
 
 const parseApiResponse = async (response: Response) => {
   const text = await response.text();
@@ -72,7 +82,7 @@ function CreateGamePageContent() {
     void checkSession();
   }, [isGuestMode, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!canCreateGame) {
@@ -136,59 +146,119 @@ function CreateGamePageContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#1a2035] text-white">
-      <nav className="h-16 bg-[#0f1729] border-b border-gray-700 px-6 flex items-center">
-        <button
-          onClick={() => router.push("/")}
-          className="text-gray-400 hover:text-white transition-colors"
-        >
-          ← Back to Home
-        </button>
+    <div
+      className="min-h-screen"
+      style={{
+        backgroundColor: "var(--bg-primary)",
+        color: "var(--text-primary)",
+      }}
+    >
+      <nav
+        className="border-b"
+        style={{
+          backgroundColor: "var(--surface-primary)",
+          borderColor: "var(--border-color)",
+        }}
+      >
+        <div className="container mx-auto flex h-16 items-center px-4 sm:px-6">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => router.push("/")}
+            className="shadow-none"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to Home
+          </Button>
+        </div>
       </nav>
 
-      <div className="container mx-auto px-4 py-8 max-w-2xl">
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <h1 className="text-3xl font-bold">Create New Game</h1>
+      <main className="container mx-auto max-w-2xl px-4 py-8 sm:py-10">
+        <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p
+              className="mb-2 text-sm font-semibold uppercase tracking-wide"
+              style={{ color: "var(--primary)" }}
+            >
+              Planning session
+            </p>
+            <h1 className="text-3xl font-bold">Create New Game</h1>
+            <p
+              className="mt-2 text-sm"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Set up the room, choose a deck, and tune permissions before your
+              team joins.
+            </p>
+          </div>
           {isGuestMode && (
-            <span className="rounded-full border border-blue-400/50 bg-blue-500/15 px-3 py-1 text-sm font-medium text-blue-200">
+            <span
+              className="inline-flex w-fit items-center rounded-full border px-3 py-1 text-sm font-medium"
+              style={{
+                backgroundColor: "var(--info-bg)",
+                borderColor: "var(--info)",
+                color: "var(--info)",
+              }}
+            >
               Guest mode
             </span>
           )}
-        </div>
+        </header>
 
         {isCheckingSession ? (
-          <div className="rounded-lg bg-[#0f1729] p-6 text-gray-300">
-            Checking your session...
-          </div>
+          <Card className="p-6" variant="primary">
+            <p style={{ color: "var(--text-secondary)" }}>
+              Checking your session...
+            </p>
+          </Card>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="bg-[#0f1729] rounded-lg p-6 space-y-4">
-              <h2 className="text-xl font-semibold mb-4">Basic Settings</h2>
+            <Card className="space-y-5 p-6" variant="primary">
+              <div className="flex items-center gap-3">
+                <span
+                  className="flex h-10 w-10 items-center justify-center rounded-lg"
+                  style={{
+                    backgroundColor: "var(--surface-accent)",
+                    color: "var(--primary)",
+                  }}
+                >
+                  <SlidersHorizontal className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 className="text-xl font-semibold">Basic Settings</h2>
+                  <p
+                    className="text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    The essentials your team sees first.
+                  </p>
+                </div>
+              </div>
 
               {isGuestMode && (
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Display Name
-                  </label>
-                  <input
+                <Field
+                  label="Display Name"
+                  helperText="A random guest name is generated if this is left empty"
+                >
+                  <Input
                     type="text"
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="Leave empty for a random name"
                     maxLength={40}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
                   />
-                  <p className="text-xs text-gray-400 mt-1">
-                    A random guest name is generated if this is left empty
-                  </p>
-                </div>
+                </Field>
               )}
 
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Game Name <span className="text-red-400">*</span>
-                </label>
-                <input
+              <Field
+                label={
+                  <>
+                    Game Name <span style={{ color: "var(--danger)" }}>*</span>
+                  </>
+                }
+                helperText="Max 60 characters, emojis supported"
+              >
+                <Input
                   type="text"
                   value={gameName}
                   onChange={(e) => setGameName(e.target.value)}
@@ -196,22 +266,14 @@ function CreateGamePageContent() {
                   maxLength={60}
                   required
                   disabled={!canCreateGame}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                 />
-                <p className="text-xs text-gray-400 mt-1">
-                  Max 60 characters, emojis supported
-                </p>
-              </div>
+              </Field>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Voting System
-                </label>
-                <select
+              <Field label="Voting System">
+                <Select
                   value={votingSystem}
                   onChange={(e) => setVotingSystem(e.target.value)}
                   disabled={!canCreateGame}
-                  className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <option value="fibonacci">
                     Fibonacci (0, 1, 2, 3, 5, 8, 13...)
@@ -223,153 +285,108 @@ function CreateGamePageContent() {
                   <option value="powers-of-2">
                     Powers of 2 (1, 2, 4, 8, 16...)
                   </option>
-                </select>
-              </div>
+                </Select>
+              </Field>
 
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-2"
+                className="px-0 shadow-none hover:translate-y-0"
+                style={{ color: "var(--primary)" }}
               >
                 {showAdvanced ? "Hide" : "Show"} advanced settings
-                <svg
-                  className={`w-4 h-4 transition-transform ${showAdvanced ? "rotate-180" : ""}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
-              </button>
-            </div>
+                <ChevronDown
+                  className={`h-4 w-4 transition-transform ${
+                    showAdvanced ? "rotate-180" : ""
+                  }`}
+                  aria-hidden="true"
+                />
+              </Button>
+            </Card>
 
             {showAdvanced && (
-              <div className="bg-[#0f1729] rounded-lg p-6 space-y-4">
-                <h2 className="text-xl font-semibold mb-4">
-                  Advanced Settings
-                </h2>
-
+              <Card className="space-y-5 p-6" variant="primary">
                 <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Who can reveal cards
-                  </label>
-                  <select
+                  <h2 className="text-xl font-semibold">Advanced Settings</h2>
+                  <p
+                    className="text-sm"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
+                    Optional controls for reveals, issue management, and result
+                    behavior.
+                  </p>
+                </div>
+
+                <Field
+                  label="Who can reveal cards"
+                  helperText="Players who are allowed to flip cards and show results"
+                >
+                  <Select
                     value={whoCanReveal}
                     onChange={(e) => setWhoCanReveal(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
                   >
                     <option value="all_players">All players</option>
                     <option value="facilitator_only">Only facilitator</option>
-                  </select>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Players who are allowed to flip cards and show results
-                  </p>
-                </div>
+                  </Select>
+                </Field>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Who can manage issues
-                  </label>
-                  <select
+                <Field
+                  label="Who can manage issues"
+                  helperText="Players who are allowed to create, delete and edit issues"
+                >
+                  <Select
                     value={whoCanManageIssues}
                     onChange={(e) => setWhoCanManageIssues(e.target.value)}
-                    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 transition-colors"
                   >
                     <option value="all_players">All players</option>
                     <option value="facilitator_only">Only facilitator</option>
-                  </select>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Players who are allowed to create, delete and edit issues
-                  </p>
-                </div>
+                  </Select>
+                </Field>
 
                 <div className="space-y-3">
-                  <label className="flex items-center justify-between cursor-pointer gap-4">
-                    <div>
-                      <div className="font-medium">Auto-reveal cards</div>
-                      <div className="text-xs text-gray-400">
-                        Show cards automatically after everyone voted
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={autoReveal}
-                      onChange={(e) => setAutoReveal(e.target.checked)}
-                      className="w-5 h-5 rounded"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between cursor-pointer gap-4">
-                    <div>
-                      <div className="font-medium">Enable fun features</div>
-                      <div className="text-xs text-gray-400">
-                        Allow players throw projectiles to each other
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={funFeatures}
-                      onChange={(e) => setFunFeatures(e.target.checked)}
-                      className="w-5 h-5 rounded"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between cursor-pointer gap-4">
-                    <div>
-                      <div className="font-medium">Show average in results</div>
-                      <div className="text-xs text-gray-400">
-                        Include the average value in the voting results
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={showAverage}
-                      onChange={(e) => setShowAverage(e.target.checked)}
-                      className="w-5 h-5 rounded"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between cursor-pointer gap-4">
-                    <div>
-                      <div className="font-medium">
-                        Show countdown animation
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        A countdown is shown when revealing cards
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={showCountdown}
-                      onChange={(e) => setShowCountdown(e.target.checked)}
-                      className="w-5 h-5 rounded"
-                    />
-                  </label>
+                  <ToggleRow
+                    checked={autoReveal}
+                    label="Auto-reveal cards"
+                    description="Show cards automatically after everyone voted"
+                    onChange={setAutoReveal}
+                  />
+                  <ToggleRow
+                    checked={funFeatures}
+                    label="Enable fun features"
+                    description="Allow players to throw projectiles to each other"
+                    onChange={setFunFeatures}
+                  />
+                  <ToggleRow
+                    checked={showAverage}
+                    label="Show average in results"
+                    description="Include the average value in the voting results"
+                    onChange={setShowAverage}
+                  />
+                  <ToggleRow
+                    checked={showCountdown}
+                    label="Show countdown animation"
+                    description="A countdown is shown when revealing cards"
+                    onChange={setShowCountdown}
+                  />
                 </div>
-              </div>
+              </Card>
             )}
 
-            {error && (
-              <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                {error}
-              </div>
-            )}
+            {error && <Alert variant="danger">{error}</Alert>}
 
-            <button
+            <Button
               type="submit"
+              variant="primary"
+              size="lg"
               disabled={isLoading || !gameName.trim() || !canCreateGame}
-              className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors"
+              className="w-full"
             >
               {isLoading ? "Creating..." : "Create Game"}
-            </button>
+            </Button>
           </form>
         )}
-      </div>
+      </main>
     </div>
   );
 }
@@ -378,7 +395,13 @@ export default function CreateGamePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#1a2035] text-white flex items-center justify-center">
+        <div
+          className="flex min-h-screen items-center justify-center"
+          style={{
+            backgroundColor: "var(--bg-primary)",
+            color: "var(--text-primary)",
+          }}
+        >
           Loading...
         </div>
       }

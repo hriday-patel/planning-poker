@@ -1,8 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { LogIn, UserPlus } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import {
+  Alert,
+  Button,
+  Field,
+  Input,
+  ModalFooter,
+  ModalHeader,
+  ModalShell,
+} from "@/components/ui";
 
 interface GuestModeModalProps {
   isOpen: boolean;
@@ -22,8 +32,9 @@ export default function GuestModeModal({
   const [gameName, setGameName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const isCreateMode = mode === "create";
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
@@ -40,7 +51,7 @@ export default function GuestModeModal({
     };
 
     try {
-      if (mode === "create") {
+      if (isCreateMode) {
         // Create a new game as guest
         const response = await apiFetch("/api/v1/guest/games", {
           method: "POST",
@@ -90,121 +101,95 @@ export default function GuestModeModal({
 
         window.location.assign(`/game/${data.game.id}`);
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
       setIsLoading(false);
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {mode === "create" ? "Create Game as Guest" : "Join Game as Guest"}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
+    <ModalShell
+      isOpen={isOpen}
+      onClose={onClose}
+      maxWidthClassName="max-w-md"
+      opaqueBackdrop
+    >
+      <ModalHeader
+        icon={isCreateMode ? UserPlus : LogIn}
+        title={isCreateMode ? "Create Game as Guest" : "Join Game as Guest"}
+        subtitle="Play without signing in; your guest session lasts 7 days."
+        onClose={onClose}
+      />
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label
-              htmlFor="displayName"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-            >
-              Display Name (Optional)
-            </label>
-            <input
+      <form onSubmit={handleSubmit} className="overflow-y-auto">
+        <div className="space-y-4 p-5">
+          <Field
+            label="Display Name (Optional)"
+            helperText="A random name will be generated if left empty"
+          >
+            <Input
               type="text"
               id="displayName"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Leave empty for random name"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               maxLength={40}
             />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              A random name will be generated if left empty
-            </p>
-          </div>
+          </Field>
 
-          {mode === "create" && (
-            <div>
-              <label
-                htmlFor="gameName"
-                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-              >
-                Game Name <span className="text-red-500">*</span>
-              </label>
-              <input
+          {isCreateMode && (
+            <Field
+              label={
+                <>
+                  Game Name <span style={{ color: "var(--danger)" }}>*</span>
+                </>
+              }
+            >
+              <Input
                 type="text"
                 id="gameName"
                 value={gameName}
                 onChange={(e) => setGameName(e.target.value)}
                 placeholder="Enter game name"
                 required
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 maxLength={60}
               />
-            </div>
+            </Field>
           )}
 
-          {error && (
-            <div className="p-3 bg-red-100 dark:bg-red-900 border border-red-400 dark:border-red-700 text-red-700 dark:text-red-200 rounded-md text-sm">
-              {error}
-            </div>
-          )}
+          {error && <Alert variant="danger">{error}</Alert>}
 
-          <div className="bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-md p-3">
-            <p className="text-sm text-blue-800 dark:text-blue-200">
-              <strong>Guest Mode:</strong> You can play without signing in. Your
-              session will last for 7 days.
-            </p>
-          </div>
+          <Alert variant="info">
+            <strong>Guest Mode:</strong> You can play without signing in. Your
+            session will last for 7 days.
+          </Alert>
+        </div>
 
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              disabled={isLoading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading || (mode === "create" && !gameName)}
-            >
-              {isLoading
-                ? "Loading..."
-                : mode === "create"
-                  ? "Create Game"
-                  : "Join Game"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <ModalFooter layout="split">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={onClose}
+            disabled={isLoading}
+            className="w-full"
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            disabled={isLoading || (isCreateMode && !gameName)}
+            className="w-full"
+          >
+            {isLoading
+              ? "Loading..."
+              : isCreateMode
+                ? "Create Game"
+                : "Join Game"}
+          </Button>
+        </ModalFooter>
+      </form>
+    </ModalShell>
   );
 }
 

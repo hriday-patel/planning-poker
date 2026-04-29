@@ -32,6 +32,16 @@ import VotingHistory from "@/components/VotingHistory";
 import GameSettingsModal from "@/components/GameSettingsModal";
 import GuestModeModal from "@/components/GuestModeModal";
 import { apiFetch } from "@/lib/api";
+import {
+  Alert,
+  Badge,
+  Button,
+  EmptyState,
+  IconButton,
+  Input,
+  PageShell,
+  Textarea,
+} from "@/components/ui";
 
 const formatTimer = (totalSeconds?: number | null) => {
   if (totalSeconds === null || totalSeconds === undefined) {
@@ -50,14 +60,6 @@ const formatSpeed = (seconds?: number | null) => {
 
   return `${seconds.toFixed(seconds % 1 === 0 ? 0 : 1)}s`;
 };
-
-const primaryButtonStyle = {
-  background:
-    "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
-  color: "white",
-  boxShadow:
-    "0 16px 40px -24px color-mix(in srgb, var(--primary) 70%, transparent)",
-} as const;
 
 export default function GameRoomPage() {
   const params = useParams();
@@ -449,78 +451,50 @@ export default function GameRoomPage() {
 
   if (isReconnecting) {
     return (
-      <div
-        className="flex min-h-screen items-center justify-center transition-colors"
-        style={{
-          backgroundColor: "var(--bg-primary)",
-          color: "var(--text-primary)",
-        }}
-      >
+      <PageShell className="flex items-center justify-center transition-colors">
         <div className="flex items-center gap-3 text-lg font-semibold">
           <TimerReset className="h-5 w-5 animate-spin" />
           Reconnecting to game...
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   if (gameState.isLoading) {
     return (
-      <div
-        className="flex min-h-screen items-center justify-center transition-colors"
-        style={{
-          backgroundColor: "var(--bg-primary)",
-          color: "var(--text-primary)",
-        }}
-      >
+      <PageShell className="flex items-center justify-center transition-colors">
         <div className="text-lg font-semibold">Loading game...</div>
-      </div>
+      </PageShell>
     );
   }
 
   if (showGuestJoinModal && !isAuthenticated) {
     return (
-      <div
-        className="min-h-screen"
-        style={{ backgroundColor: "var(--bg-primary)" }}
-      >
+      <PageShell>
         <GuestModeModal
           isOpen={showGuestJoinModal}
           onClose={() => router.push("/")}
           mode="join"
           gameId={gameId}
         />
-      </div>
+      </PageShell>
     );
   }
 
   if (gameState.error || !gameState.game) {
     return (
-      <div
-        className="flex min-h-screen items-center justify-center transition-colors"
-        style={{
-          backgroundColor: "var(--bg-primary)",
-          color: "var(--danger)",
-        }}
-      >
-        <div className="text-lg font-semibold">
+      <PageShell className="flex items-center justify-center transition-colors px-6">
+        <Alert variant="danger" className="max-w-md text-center text-base">
           {gameState.error || "Game not found"}
-        </div>
-      </div>
+        </Alert>
+      </PageShell>
     );
   }
 
   return (
-    <div
-      className="min-h-screen transition-colors"
-      style={{
-        background:
-          "radial-gradient(circle at top left, color-mix(in srgb, var(--primary) 12%, transparent) 0%, transparent 32%), radial-gradient(circle at bottom right, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 28%), var(--bg-primary)",
-        color: "var(--text-primary)",
-      }}
-    >
+    <PageShell className="transition-colors">
       <nav
-        className="sticky top-0 z-40 border-b backdrop-blur supports-backdrop-filter:bg-(--overlay)"
+        className="sticky top-0 z-40 border-b"
         style={{
           backgroundColor:
             "color-mix(in srgb, var(--bg-primary) 84%, transparent)",
@@ -594,9 +568,11 @@ export default function GameRoomPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              type="button"
+              variant="subtle"
               onClick={() => setShowTimerModal(true)}
-              className="hidden items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium sm:flex"
+              className="hidden sm:inline-flex"
               style={{
                 backgroundColor: timerRunning
                   ? "color-mix(in srgb, var(--primary) 18%, var(--surface-secondary))"
@@ -609,18 +585,20 @@ export default function GameRoomPage() {
             >
               <Clock3 className="h-4 w-4" />
               <span className="font-mono">{formatTimer(timerRemaining)}</span>
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
               onClick={() => setShowInviteModal(true)}
-              className="inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold"
-              style={primaryButtonStyle}
+              size="sm"
             >
               <Share2 className="h-4 w-4" />
               <span className="hidden sm:inline">Invite</span>
-            </button>
-            <button
+            </Button>
+            <IconButton
               onClick={() => setShowIssuesPanel((prev) => !prev)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border"
+              aria-label="Toggle issues panel"
+              title="Toggle issues panel"
+              variant="secondary"
               style={{
                 backgroundColor: showIssuesPanel
                   ? "var(--surface-accent)"
@@ -632,11 +610,9 @@ export default function GameRoomPage() {
                   ? "var(--primary)"
                   : "var(--text-secondary)",
               }}
-              aria-label="Toggle issues panel"
-              title="Toggle issues panel"
             >
               <ListChecks className="h-5 w-5" />
-            </button>
+            </IconButton>
             <ThemeToggle />
           </div>
         </div>
@@ -661,7 +637,7 @@ export default function GameRoomPage() {
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p
-                      className="text-xs uppercase tracking-[0.18em]"
+                      className="text-xs uppercase tracking-wide"
                       style={{ color: "var(--text-tertiary)" }}
                     >
                       Current issue
@@ -870,7 +846,7 @@ export default function GameRoomPage() {
                               Facilitator estimate
                             </label>
                             <div className="flex gap-2">
-                              <input
+                              <Input
                                 value={customEstimate}
                                 onChange={(event) => {
                                   setCustomEstimate(event.target.value);
@@ -882,13 +858,13 @@ export default function GameRoomPage() {
                                 maxLength={10}
                                 className="min-w-0 flex-1 rounded-lg px-3 py-2 text-sm"
                               />
-                              <button
+                              <Button
+                                type="button"
                                 onClick={handleSaveEstimate}
-                                className="rounded-lg px-3 py-2 text-sm font-semibold"
-                                style={primaryButtonStyle}
+                                size="sm"
                               >
                                 Save
-                              </button>
+                              </Button>
                             </div>
                             <p
                               className="mt-2 text-xs"
@@ -900,13 +876,13 @@ export default function GameRoomPage() {
                           </div>
                         )}
 
-                        <button
+                        <Button
+                          type="button"
                           onClick={handlePickNextIssue}
-                          className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold"
-                          style={primaryButtonStyle}
+                          className="mt-4"
                         >
                           Pick next issue
-                        </button>
+                        </Button>
                       </div>
                     ) : (
                       <div className="max-w-md text-center">
@@ -944,13 +920,13 @@ export default function GameRoomPage() {
                             : "Select Vote this issue in the sidebar to open the table for cards."}
                         </p>
                         {canRevealCards && (
-                          <button
+                          <Button
+                            type="button"
                             onClick={handleRevealCards}
-                            className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold"
-                            style={primaryButtonStyle}
+                            className="mt-4"
                           >
                             Reveal cards
-                          </button>
+                          </Button>
                         )}
                       </div>
                     )}
@@ -1179,16 +1155,14 @@ export default function GameRoomPage() {
                       ? "Paused"
                       : "Not started"}
                 </p>
-                <button
+                <Button
+                  type="button"
+                  variant="secondary"
                   onClick={() => setShowTimerModal(true)}
-                  className="mt-4 w-full rounded-lg border px-3 py-2 text-sm font-semibold"
-                  style={{
-                    borderColor: "var(--border-color)",
-                    backgroundColor: "var(--surface-secondary)",
-                  }}
+                  className="mt-4 w-full"
                 >
                   Timer controls
-                </button>
+                </Button>
               </div>
             </aside>
           </div>
@@ -1216,7 +1190,7 @@ export default function GameRoomPage() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button
+                <IconButton
                   onClick={() => {
                     if (!canManageIssues) {
                       setActionError(
@@ -1228,7 +1202,13 @@ export default function GameRoomPage() {
                     setShowAddIssueForm((prev) => !prev);
                     setActionError(null);
                   }}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border"
+                  aria-label="Add issue"
+                  title={
+                    canManageIssues
+                      ? "Add issue"
+                      : "Only the facilitator can manage issues"
+                  }
+                  variant="secondary"
                   style={{
                     backgroundColor: canManageIssues
                       ? "var(--surface-secondary)"
@@ -1238,62 +1218,35 @@ export default function GameRoomPage() {
                       ? "var(--text-primary)"
                       : "var(--text-muted)",
                   }}
-                  aria-label="Add issue"
-                  title={
-                    canManageIssues
-                      ? "Add issue"
-                      : "Only the facilitator can manage issues"
-                  }
                 >
                   <Plus className="h-5 w-5" />
-                </button>
-                <button
+                </IconButton>
+                <IconButton
                   onClick={() => setShowIssuesPanel(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-lg border"
-                  style={{
-                    backgroundColor: "var(--surface-secondary)",
-                    borderColor: "var(--border-color)",
-                  }}
                   aria-label="Close issues"
                   title="Close issues"
                 >
                   <X className="h-5 w-5" />
-                </button>
+                </IconButton>
               </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">
               {!canManageIssues && (
-                <div
-                  className="mb-3 rounded-lg border px-3 py-2 text-sm"
-                  style={{
-                    backgroundColor:
-                      "color-mix(in srgb, var(--warning) 12%, transparent)",
-                    borderColor: "var(--warning)",
-                    color: "var(--warning)",
-                  }}
-                >
+                <Alert variant="warning" className="mb-3">
                   Only the facilitator can add issues or start issue voting.
-                </div>
+                </Alert>
               )}
 
               {actionError && (
-                <div
-                  className="mb-3 rounded-lg border px-3 py-2 text-sm"
-                  style={{
-                    backgroundColor:
-                      "color-mix(in srgb, var(--danger) 12%, transparent)",
-                    borderColor: "var(--danger)",
-                    color: "var(--danger)",
-                  }}
-                >
+                <Alert variant="danger" className="mb-3">
                   {actionError}
-                </div>
+                </Alert>
               )}
 
               {showAddIssueForm && (
                 <form onSubmit={handleAddIssue} className="mb-4 space-y-3">
-                  <textarea
+                  <Textarea
                     value={newIssueTitle}
                     onChange={(event) => setNewIssueTitle(event.target.value)}
                     maxLength={500}
@@ -1303,51 +1256,38 @@ export default function GameRoomPage() {
                     className="w-full resize-none rounded-lg px-3 py-2 text-sm"
                   />
                   <div className="flex gap-2">
-                    <button
+                    <Button
                       type="submit"
                       disabled={
                         !newIssueTitle.trim() ||
                         !isConnected ||
                         !canManageIssues
                       }
-                      className="flex-1 rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                      style={primaryButtonStyle}
+                      className="flex-1"
                     >
                       Add issue
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="secondary"
                       onClick={() => {
                         setShowAddIssueForm(false);
                         setNewIssueTitle("");
                       }}
-                      className="rounded-lg border px-3 py-2 text-sm"
-                      style={{
-                        backgroundColor: "var(--surface-secondary)",
-                        borderColor: "var(--border-color)",
-                      }}
                     >
                       Cancel
-                    </button>
+                    </Button>
                   </div>
                 </form>
               )}
 
               {gameState.issues.length === 0 ? (
-                <div
-                  className="mt-8 rounded-lg border p-5 text-center"
-                  style={{
-                    backgroundColor: "var(--surface-primary)",
-                    borderColor: "var(--border-color)",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  <ListChecks className="mx-auto mb-3 h-6 w-6" />
-                  <p className="font-medium">No issues yet</p>
-                  <p className="mt-1 text-sm">
-                    Use the add button to build the voting queue.
-                  </p>
-                </div>
+                <EmptyState
+                  icon={ListChecks}
+                  title="No issues yet"
+                  description="Use the add button to build the voting queue."
+                  className="mt-8"
+                />
               ) : (
                 <div className="space-y-3">
                   {gameState.issues.map((issue) => {
@@ -1379,25 +1319,18 @@ export default function GameRoomPage() {
                           <h3 className="min-w-0 text-sm font-semibold leading-5">
                             {issue.title}
                           </h3>
-                          <span
-                            className="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium capitalize"
-                            style={{
-                              backgroundColor:
-                                issue.status === "voting"
-                                  ? "color-mix(in srgb, var(--primary) 16%, transparent)"
-                                  : isIssueVoted
-                                    ? "color-mix(in srgb, var(--success) 16%, transparent)"
-                                    : "var(--surface-tertiary)",
-                              color:
-                                issue.status === "voting"
-                                  ? "var(--primary)"
-                                  : isIssueVoted
-                                    ? "var(--success)"
-                                    : "var(--text-secondary)",
-                            }}
+                          <Badge
+                            variant={
+                              issue.status === "voting"
+                                ? "info"
+                                : isIssueVoted
+                                  ? "success"
+                                  : "neutral"
+                            }
+                            className="shrink-0 capitalize"
                           >
                             {issue.status}
-                          </span>
+                          </Badge>
                         </div>
 
                         {isIssueVoted && (
@@ -1415,19 +1348,12 @@ export default function GameRoomPage() {
                           </div>
                         )}
 
-                        <button
+                        <Button
                           type="button"
                           onClick={() => handleVoteIssue(issue)}
                           disabled={!canStartIssueVote}
-                          className="mt-3 w-full rounded-lg px-3 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
-                          style={
-                            canStartIssueVote
-                              ? primaryButtonStyle
-                              : {
-                                  backgroundColor: "var(--surface-tertiary)",
-                                  color: "var(--text-muted)",
-                                }
-                          }
+                          variant={canStartIssueVote ? "primary" : "subtle"}
+                          className="mt-3 w-full"
                         >
                           {isIssueVoted
                             ? "Voted"
@@ -1438,7 +1364,7 @@ export default function GameRoomPage() {
                                 : isRoundInProgress
                                   ? "Finish current issue"
                                   : "Vote this issue"}
-                        </button>
+                        </Button>
                       </div>
                     );
                   })}
@@ -1486,7 +1412,7 @@ export default function GameRoomPage() {
         timeIssuesEnabled={timeIssuesEnabled}
         onToggleTimeIssues={setTimeIssuesEnabled}
       />
-    </div>
+    </PageShell>
   );
 }
 

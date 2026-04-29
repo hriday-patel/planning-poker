@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
+import { Button, Card } from "@/components/ui";
 
 export default function FAQPage() {
   const router = useRouter();
@@ -92,27 +94,23 @@ export default function FAQPage() {
       }}
     >
       {/* Navigation */}
-      <nav className="border-b" style={{ borderColor: "var(--border-color)" }}>
+      <nav
+        className="border-b"
+        style={{
+          backgroundColor: "var(--surface-primary)",
+          borderColor: "var(--border-color)",
+        }}
+      >
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <button
+          <Button
+            type="button"
+            variant="ghost"
             onClick={() => router.push("/")}
-            className="flex items-center gap-2 hover:text-blue-400 transition-colors"
+            className="shadow-none"
           >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10 19l-7-7m0 0l7-7m-7 7h18"
-              />
-            </svg>
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Back to Home
-          </button>
+          </Button>
         </div>
       </nav>
 
@@ -122,15 +120,11 @@ export default function FAQPage() {
 
         <div className="space-y-6">
           {faqs.map((faq, index) => (
-            <div
-              key={index}
-              className="border rounded-lg p-6"
-              style={{
-                backgroundColor: "var(--bg-secondary)",
-                borderColor: "var(--border-color)",
-              }}
-            >
-              <h2 className="text-xl font-semibold mb-3 text-blue-400">
+            <Card key={index} className="p-6" variant="primary">
+              <h2
+                className="text-xl font-semibold mb-3"
+                style={{ color: "var(--primary)" }}
+              >
                 {faq.question}
               </h2>
               <p
@@ -139,12 +133,18 @@ export default function FAQPage() {
               >
                 {faq.answer}
               </p>
-            </div>
+            </Card>
           ))}
         </div>
 
         {/* Contact Section */}
-        <div className="mt-12 bg-blue-900 bg-opacity-30 border border-blue-700 rounded-lg p-8 text-center">
+        <div
+          className="mt-12 rounded-lg border p-8 text-center shadow-theme"
+          style={{
+            backgroundColor: "var(--info-bg)",
+            borderColor: "var(--info)",
+          }}
+        >
           <h2 className="text-2xl font-semibold mb-4">Still have questions?</h2>
           <p className="mb-6" style={{ color: "var(--text-secondary)" }}>
             Can't find the answer you're looking for? Please reach out to our
@@ -152,7 +152,12 @@ export default function FAQPage() {
           </p>
           <a
             href="mailto:support@planningpoker.com"
-            className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors text-white"
+            className="inline-flex min-h-11 items-center justify-center rounded-lg border px-5 py-3 text-base font-semibold text-white shadow-sm transition-transform hover:-translate-y-0.5 active:translate-y-0"
+            style={{
+              background:
+                "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
+              borderColor: "var(--primary)",
+            }}
           >
             Contact Support
           </a>

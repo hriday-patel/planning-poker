@@ -1,8 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  ArrowLeft,
+  Layers3,
+  LogIn,
+  RefreshCw,
+  ShieldCheck,
+} from "lucide-react";
+import ThemeToggle from "@/components/ThemeToggle";
 import { apiFetch } from "@/lib/api";
+import { Alert, Badge, Button, Card, PageShell } from "@/components/ui";
 
 function LoginPageContent() {
   const router = useRouter();
@@ -81,100 +91,120 @@ function LoginPageContent() {
   };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center"
-      style={{
-        backgroundColor: "var(--bg-primary)",
-        color: "var(--text-primary)",
-      }}
-    >
-      <div className="max-w-md w-full mx-4">
-        <div
-          className="rounded-xl p-8 shadow-xl"
-          style={{ backgroundColor: "var(--bg-secondary)" }}
-        >
-          <h1 className="text-3xl font-bold text-center mb-2">Welcome Back</h1>
+    <PageShell>
+      <nav
+        className="border-b"
+        style={{
+          backgroundColor: "var(--surface-primary)",
+          borderColor: "var(--border-color)",
+        }}
+      >
+        <div className="container mx-auto flex items-center justify-between gap-4 px-6 py-4">
+          <Link href="/" className="flex min-w-0 items-center gap-3">
+            <span
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
+              style={{ backgroundColor: "var(--primary)", color: "white" }}
+            >
+              <Layers3 className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-lg font-semibold tracking-tight">
+                Planning Poker
+              </span>
+              <span
+                className="hidden text-xs sm:block"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                Secure estimation workspace
+              </span>
+            </span>
+          </Link>
+          <ThemeToggle />
+        </div>
+      </nav>
+
+      <main className="container mx-auto flex min-h-[calc(100vh-73px)] items-center justify-center px-6 py-12">
+        <Card className="w-full max-w-md p-6 sm:p-8" variant="primary">
+          <Badge variant="info" className="mb-5">
+            <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+            IBM W3ID
+          </Badge>
+
+          <h1 className="text-3xl font-bold">Welcome Back</h1>
           <p
-            className="text-center mb-8"
+            className="mt-2 leading-7"
             style={{ color: "var(--text-secondary)" }}
           >
-            Sign in with IBM W3ID to access your planning sessions
+            Sign in with IBM W3ID to access your planning sessions.
           </p>
 
           {errorMessage && (
-            <div className="mb-6 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+            <Alert variant="danger" className="mt-6">
               {errorMessage}
-            </div>
+            </Alert>
           )}
 
-          <button
+          <Button
+            type="button"
             onClick={handleW3IDLogin}
             disabled={isRedirecting}
-            className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 text-white disabled:opacity-70"
+            className="mt-6 w-full"
+            size="lg"
           >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"
-              />
-            </svg>
+            {isRedirecting ? (
+              <RefreshCw className="h-5 w-5 animate-spin" aria-hidden="true" />
+            ) : (
+              <LogIn className="h-5 w-5" aria-hidden="true" />
+            )}
             {isRedirecting
               ? "Redirecting to IBM W3ID..."
               : "Sign in with IBM W3ID"}
-          </button>
+          </Button>
 
-          <div className="mt-6 text-center">
-            <button
-              onClick={() => router.push("/")}
-              className="transition-colors text-sm hover:opacity-80"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              ← Back to Home
-            </button>
-          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => router.push("/")}
+            className="mt-3 w-full"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Back to Home
+          </Button>
 
           <div
-            className="mt-8 pt-6 border-t"
-            style={{ borderColor: "var(--border-color)" }}
+            className="mt-6 border-t pt-5 text-sm leading-6"
+            style={{
+              borderColor: "var(--border-subtle)",
+              color: "var(--text-tertiary)",
+            }}
           >
-            <p
-              className="text-xs text-center"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              IBM W3ID authentication automatically retrieves your official
-              display name from Blue Pages.
-              <br />
-              Your corporate display name is read-only and cannot be edited.
-            </p>
+            IBM W3ID authentication automatically retrieves your official
+            display name from Blue Pages. Your corporate display name is
+            read-only and cannot be edited.
           </div>
-        </div>
+        </Card>
+      </main>
+    </PageShell>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <PageShell className="flex items-center justify-center">
+      <div
+        className="flex items-center gap-3"
+        style={{ color: "var(--text-secondary)" }}
+      >
+        <RefreshCw className="h-5 w-5 animate-spin" aria-hidden="true" />
+        Loading...
       </div>
-    </div>
+    </PageShell>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <div
-          className="min-h-screen flex items-center justify-center"
-          style={{
-            backgroundColor: "var(--bg-primary)",
-            color: "var(--text-primary)",
-          }}
-        >
-          <div className="text-white">Loading...</div>
-        </div>
-      }
-    >
+    <Suspense fallback={<LoginFallback />}>
       <LoginPageContent />
     </Suspense>
   );

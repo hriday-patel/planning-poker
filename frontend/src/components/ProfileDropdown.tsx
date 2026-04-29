@@ -1,10 +1,26 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import type { LucideIcon } from "lucide-react";
+import {
+  Briefcase,
+  ChevronDown,
+  Eye,
+  FileText,
+  HelpCircle,
+  LogOut,
+  Mail,
+  Moon,
+  Palette,
+  Pencil,
+  Sun,
+  UserRound,
+} from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import EditProfileModal from "./EditProfileModal";
 import { apiFetch } from "@/lib/api";
+import { Avatar, Badge, Button } from "@/components/ui";
 
 interface User {
   id: string;
@@ -19,6 +35,39 @@ interface ProfileDropdownProps {
   onUserUpdate?: (user: User) => void;
 }
 
+interface MenuButtonProps {
+  children: ReactNode;
+  disabled?: boolean;
+  icon: LucideIcon;
+  isDanger?: boolean;
+  onClick?: () => void;
+}
+
+function MenuButton({
+  children,
+  disabled = false,
+  icon: Icon,
+  isDanger = false,
+  onClick,
+}: MenuButtonProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
+      style={{ color: isDanger ? "var(--danger)" : "var(--text-primary)" }}
+    >
+      <Icon
+        className="h-4 w-4 shrink-0"
+        style={{ color: isDanger ? "var(--danger)" : "var(--text-secondary)" }}
+        aria-hidden="true"
+      />
+      {children}
+    </button>
+  );
+}
+
 export default function ProfileDropdown({
   user,
   onUserUpdate,
@@ -29,6 +78,10 @@ export default function ProfileDropdown({
   const [showEditModal, setShowEditModal] = useState(false);
   const [spectatorMode, setSpectatorMode] = useState(user.spectator_mode);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setSpectatorMode(user.spectator_mode);
+  }, [user.spectator_mode]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -88,112 +141,77 @@ export default function ProfileDropdown({
     }
   };
 
-  const avatarFallback = (
-    <div
-      className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold text-white"
-      style={{
-        background:
-          "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
-      }}
-    >
-      {user.display_name.charAt(0).toUpperCase()}
-    </div>
-  );
+  const closeAndRoute = (path: string) => {
+    router.push(path);
+    setIsOpen(false);
+  };
+
+  const ThemeIcon = theme === "dark" ? Moon : Sun;
 
   return (
     <>
       <div className="relative" ref={dropdownRef}>
         <button
+          type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2 rounded-xl px-3 py-2 transition-colors hover:opacity-90"
-          style={{ backgroundColor: "var(--surface-secondary)" }}
+          className="flex items-center gap-2 rounded-lg border px-3 py-2 transition-transform hover:-translate-y-0.5 active:translate-y-0"
+          style={{
+            backgroundColor: "var(--surface-secondary)",
+            borderColor: "var(--border-color)",
+            color: "var(--text-primary)",
+          }}
+          aria-haspopup="menu"
+          aria-expanded={isOpen}
         >
-          {user.avatar_url ? (
-            <img
-              src={user.avatar_url}
-              alt={user.display_name}
-              className="h-8 w-8 rounded-full object-cover"
-            />
-          ) : (
-            avatarFallback
-          )}
-          <span className="hidden text-sm font-medium md:inline">
+          <Avatar
+            name={user.display_name}
+            imageUrl={user.avatar_url}
+            size="sm"
+          />
+          <span className="hidden max-w-40 truncate text-sm font-medium md:inline">
             {user.display_name}
           </span>
-          <svg
+          <ChevronDown
             className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
             style={{ color: "var(--text-secondary)" }}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
+            aria-hidden="true"
+          />
         </button>
 
         {isOpen && (
           <div
-            className="absolute right-0 z-50 mt-2 w-64 rounded-2xl border py-2 shadow-xl"
+            className="absolute right-0 z-50 mt-2 w-72 overflow-hidden rounded-lg border py-2 shadow-theme-strong"
             style={{
-              backgroundColor: "var(--surface-elevated)",
+              backgroundColor: "var(--surface-primary)",
               borderColor: "var(--border-color)",
               color: "var(--text-primary)",
-              boxShadow:
-                "0 30px 80px -48px color-mix(in srgb, var(--text-primary) 30%, transparent)",
             }}
+            role="menu"
           >
             <div
               className="border-b px-4 py-3"
               style={{ borderColor: "var(--border-color)" }}
             >
               <div className="flex items-center gap-3">
-                {user.avatar_url ? (
-                  <img
-                    src={user.avatar_url}
-                    alt={user.display_name}
-                    className="h-10 w-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <div
-                    className="flex h-10 w-10 items-center justify-center rounded-full font-semibold text-white"
-                    style={{
-                      background:
-                        "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
-                    }}
-                  >
-                    {user.display_name.charAt(0).toUpperCase()}
-                  </div>
-                )}
+                <Avatar
+                  name={user.display_name}
+                  imageUrl={user.avatar_url}
+                  size="md"
+                />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
+                  <p className="truncate text-sm font-semibold">
                     {user.display_name}
                   </p>
                   <button
+                    type="button"
                     onClick={() => {
                       setShowEditModal(true);
                       setIsOpen(false);
                     }}
-                    className="flex items-center gap-1 text-xs transition-colors hover:opacity-80"
+                    className="mt-1 inline-flex items-center gap-1 text-xs font-medium transition-opacity hover:opacity-80"
                     style={{ color: "var(--primary)" }}
                   >
-                    <svg
-                      className="h-3 w-3"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                      />
-                    </svg>
+                    <Pencil className="h-3 w-3" aria-hidden="true" />
                     Edit profile
                   </button>
                 </div>
@@ -201,66 +219,33 @@ export default function ProfileDropdown({
             </div>
 
             <div className="py-1">
-              <button
-                onClick={() => {
-                  alert("My games feature coming soon!");
-                  setIsOpen(false);
-                }}
-                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors"
-                style={{ color: "var(--text-tertiary)" }}
-                disabled
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                  />
-                </svg>
-                My games (Coming soon)
-              </button>
+              <MenuButton icon={Briefcase} disabled>
+                <span>My games</span>
+                <Badge className="ml-auto" variant="neutral">
+                  Soon
+                </Badge>
+              </MenuButton>
 
-              <div
-                className="flex items-center justify-between px-4 py-2"
-                style={{ color: "var(--text-primary)" }}
-              >
+              <div className="flex items-center justify-between gap-3 px-4 py-2">
                 <div className="flex items-center gap-3">
-                  <svg
+                  <Eye
                     className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
                     style={{ color: "var(--text-secondary)" }}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                    />
-                  </svg>
+                    aria-hidden="true"
+                  />
                   <span className="text-sm">Spectator mode</span>
                 </div>
                 <button
+                  type="button"
                   onClick={handleSpectatorToggle}
                   className="relative inline-flex h-5 w-9 items-center rounded-full transition-colors"
                   style={{
                     backgroundColor: spectatorMode
                       ? "var(--primary)"
-                      : "var(--border-strong)",
+                      : "var(--surface-tertiary)",
                   }}
+                  aria-pressed={spectatorMode}
+                  aria-label="Toggle spectator mode"
                 >
                   <span
                     className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -270,38 +255,24 @@ export default function ProfileDropdown({
                 </button>
               </div>
 
-              <div
-                className="flex items-center justify-between px-4 py-2"
-                style={{ color: "var(--text-primary)" }}
-              >
+              <div className="flex items-center justify-between gap-3 px-4 py-2">
                 <div className="flex items-center gap-3">
-                  <svg
+                  <Palette
                     className="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
                     style={{ color: "var(--text-secondary)" }}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
-                    />
-                  </svg>
+                    aria-hidden="true"
+                  />
                   <span className="text-sm">Appearance</span>
                 </div>
-                <button
+                <Button
+                  type="button"
+                  variant="subtle"
+                  size="sm"
                   onClick={toggleTheme}
-                  className="rounded-lg border px-2 py-1 text-xs transition-colors"
-                  style={{
-                    backgroundColor: "var(--surface-secondary)",
-                    borderColor: "var(--border-muted)",
-                    color: "var(--text-primary)",
-                  }}
                 >
-                  {theme === "dark" ? "🌙 Dark" : "☀️ Light"}
-                </button>
+                  <ThemeIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  {theme === "dark" ? "Dark" : "Light"}
+                </Button>
               </div>
 
               <div
@@ -309,125 +280,45 @@ export default function ProfileDropdown({
                 style={{ borderColor: "var(--border-color)" }}
               />
 
-              <button
-                onClick={() => {
-                  router.push("/account");
-                  setIsOpen(false);
-                }}
-                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors hover:opacity-80"
+              <MenuButton
+                icon={UserRound}
+                onClick={() => closeAndRoute("/account")}
               >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                  />
-                </svg>
                 My account
-              </button>
-
+              </MenuButton>
               <a
                 href="mailto:support@planningpoker.com"
-                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors hover:opacity-80"
+                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-opacity hover:opacity-80"
                 onClick={() => setIsOpen(false)}
               >
-                <svg
+                <Mail
                   className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
                   style={{ color: "var(--text-secondary)" }}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  />
-                </svg>
+                  aria-hidden="true"
+                />
                 Contact us
               </a>
-
-              <button
-                onClick={() => {
-                  router.push("/legal");
-                  setIsOpen(false);
-                }}
-                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors hover:opacity-80"
+              <MenuButton
+                icon={FileText}
+                onClick={() => closeAndRoute("/legal")}
               >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
                 Legal notice
-              </button>
-
-              <button
-                onClick={() => {
-                  router.push("/faq");
-                  setIsOpen(false);
-                }}
-                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors hover:opacity-80"
+              </MenuButton>
+              <MenuButton
+                icon={HelpCircle}
+                onClick={() => closeAndRoute("/faq")}
               >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
                 FAQs
-              </button>
+              </MenuButton>
 
               <div
                 className="my-1 border-t"
                 style={{ borderColor: "var(--border-color)" }}
               />
 
-              <button
-                onClick={handleLogout}
-                className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors hover:opacity-80"
-                style={{ color: "var(--danger)" }}
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                  />
-                </svg>
+              <MenuButton icon={LogOut} onClick={handleLogout} isDanger>
                 Sign out
-              </button>
+              </MenuButton>
             </div>
           </div>
         )}
