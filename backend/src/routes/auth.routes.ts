@@ -5,7 +5,7 @@ import { AuthenticatedRequest } from "../types/auth.types";
 import { authenticate } from "../middleware/auth";
 import {
   authRateLimiter,
-  gameCreationRateLimiter,
+  inviteLinkRateLimiter,
   strictAuthRateLimiter,
 } from "../middleware/rateLimiter";
 import {
@@ -235,7 +235,7 @@ router.get(
 router.post(
   "/invite-links/:gameId",
   authenticate as any,
-  gameCreationRateLimiter,
+  inviteLinkRateLimiter,
   async (req: Request, res: Response): Promise<void> => {
     const authReq = req as AuthenticatedRequest;
 

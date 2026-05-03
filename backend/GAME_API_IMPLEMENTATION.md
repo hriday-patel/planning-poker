@@ -71,8 +71,8 @@ interface GameRecord {
   voting_system: string; // Deck ID
   who_can_reveal: GamePermission; // "all_players" | "only_facilitator"
   who_can_manage_issues: GamePermission; // "all_players" | "only_facilitator"
+  who_can_toggle_spectator: GamePermission; // "all_players" | "only_facilitator"
   auto_reveal: boolean; // Auto-reveal after all votes
-  fun_features_enabled: boolean; // Enable projectile throwing
   show_average: boolean; // Show average in results
   show_countdown: boolean; // Show countdown animation
   status: GameStatus; // "active" | "archived"
@@ -83,12 +83,14 @@ interface GameRecord {
 
 ### System Decks
 
-Four pre-defined decks are automatically initialized on server startup:
+Five pre-defined decks are automatically initialized on server startup:
 
 1. **Fibonacci**: `[0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, ?, ☕]`
 2. **Modified Fibonacci**: `[0, ½, 1, 2, 3, 5, 8, 13, 20, 40, 100, ?, ☕]`
 3. **T-shirts**: `[XS, S, M, L, XL, ?, ☕]`
 4. **Powers of 2**: `[0, 1, 2, 4, 8, 16, 32, 64, ?, ☕]`
+5. **Normal (0-10)**: `[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]`
+6. **Powers of 2**: `[0, 1, 2, 4, 8, 16, 32, 64, ?, ☕]`
 
 ---
 
@@ -208,8 +210,8 @@ Rate Limit: 5 requests per 15 minutes
   "voting_system": "deck-uuid",
   "who_can_reveal": "all_players",
   "who_can_manage_issues": "only_facilitator",
+  "who_can_toggle_spectator": "all_players",
   "auto_reveal": false,
-  "fun_features_enabled": true,
   "show_average": true,
   "show_countdown": true
 }
@@ -224,8 +226,8 @@ Rate Limit: 5 requests per 15 minutes
 - `voting_system`: Deck ID (defaults to Fibonacci)
 - `who_can_reveal`: "all_players" | "only_facilitator" (default: "all_players")
 - `who_can_manage_issues`: "all_players" | "only_facilitator" (default: "all_players")
+- `who_can_toggle_spectator`: "all_players" | "only_facilitator" (default: "all_players")
 - `auto_reveal`: boolean (default: false)
-- `fun_features_enabled`: boolean (default: true)
 - `show_average`: boolean (default: true)
 - `show_countdown`: boolean (default: true)
 
@@ -242,8 +244,8 @@ Rate Limit: 5 requests per 15 minutes
     "voting_system": "deck-uuid",
     "who_can_reveal": "all_players",
     "who_can_manage_issues": "only_facilitator",
+    "who_can_toggle_spectator": "all_players",
     "auto_reveal": false,
-    "fun_features_enabled": true,
     "show_average": true,
     "show_countdown": true,
     "status": "active",
@@ -316,8 +318,8 @@ Content-Type: application/json
 - `facilitator_id`: Transfer facilitator role (must be a participant)
 - `who_can_reveal`: Permission setting
 - `who_can_manage_issues`: Permission setting
+- `who_can_toggle_spectator`: Permission setting for room spectator/voter self-toggle
 - `auto_reveal`: Toggle auto-reveal
-- `fun_features_enabled`: Toggle fun features
 - `show_average`: Toggle average display
 - `show_countdown`: Toggle countdown animation
 - `status`: Archive/activate game

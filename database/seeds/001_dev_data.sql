@@ -16,22 +16,22 @@ INSERT INTO decks (id, name, values, is_default, created_by) VALUES
     ('550e8400-e29b-41d4-a716-446655440001', 'My Custom Deck', ARRAY['1', '2', '3', '5', '8', '13', '?', '☕'], false, 'w3id_user_001');
 
 -- Insert test games
-INSERT INTO games (id, name, creator_id, facilitator_id, deck_id, who_can_reveal, who_can_manage_issues, auto_reveal, fun_features_enabled, show_average, show_countdown, status) VALUES
+INSERT INTO games (id, name, creator_id, facilitator_id, deck_id, who_can_reveal, who_can_manage_issues, who_can_toggle_spectator, auto_reveal, show_average, show_countdown, status) VALUES
     ('550e8400-e29b-41d4-a716-446655440010', 'Sprint 23 Planning', 'w3id_user_001', 'w3id_user_001', 
      (SELECT id FROM decks WHERE name = 'Fibonacci' LIMIT 1), 
-     'all_players', 'all_players', false, true, true, true, 'active'),
+    'all_players', 'all_players', 'all_players', false, true, true, 'active'),
     
     ('550e8400-e29b-41d4-a716-446655440011', 'Q2 Feature Estimation', 'w3id_user_002', 'w3id_user_002',
      (SELECT id FROM decks WHERE name = 'Modified Fibonacci' LIMIT 1),
-     'facilitator_only', 'facilitator_only', true, true, true, true, 'active'),
+    'facilitator_only', 'facilitator_only', 'facilitator_only', true, true, true, 'active'),
     
     ('550e8400-e29b-41d4-a716-446655440012', 'Bug Triage Session', 'w3id_user_003', 'w3id_user_003',
      (SELECT id FROM decks WHERE name = 'T-shirts' LIMIT 1),
-     'all_players', 'all_players', false, false, true, false, 'active'),
+    'all_players', 'all_players', 'all_players', false, true, false, 'active'),
     
     ('550e8400-e29b-41d4-a716-446655440013', 'Archived Game Example', 'w3id_user_001', 'w3id_user_001',
      (SELECT id FROM decks WHERE name = 'Fibonacci' LIMIT 1),
-     'all_players', 'all_players', false, true, true, true, 'archived');
+    'all_players', 'all_players', 'all_players', false, true, true, 'archived');
 
 -- Insert game participants
 INSERT INTO game_participants (game_id, user_id, is_active) VALUES

@@ -24,6 +24,14 @@ const parseCardValue = (value: string): number | null => {
  */
 const rooms = new Map<string, RoomState>();
 
+const clearPlayerRoundVote = (room: RoomState, userId: string): void => {
+  if (!room.current_round) return;
+
+  room.current_round.eligible_voter_ids.delete(userId);
+  room.current_round.votes.delete(userId);
+  room.current_round.vote_times.delete(userId);
+};
+
 /**
  * Get or create a room for a game
  */
@@ -63,6 +71,12 @@ export const addPlayerToRoom = async (
   }
 
   const isFacilitator = game.facilitator_id === userId;
+  const existingPlayer = room.players.get(userId);
+  const isRoundObserver = Boolean(
+    room.current_round &&
+    !room.current_round.is_revealed &&
+    !room.current_round.eligible_voter_ids.has(userId),
+  );
 
   // Add or update player in room
   room.players.set(userId, {
@@ -71,8 +85,12 @@ export const addPlayerToRoom = async (
     display_name: user.display_name,
     avatar_url: user.avatar_url || null,
     is_facilitator: isFacilitator,
-    is_spectator: user.spectator_mode,
-    joined_at: new Date(),
+    is_spectator: existingPlayer?.is_spectator ?? user.spectator_mode,
+    is_round_observer: existingPlayer?.is_round_observer ?? isRoundObserver,
+    observer_reason:
+      existingPlayer?.observer_reason ??
+      (isRoundObserver ? "joined_mid_round" : null),
+    joined_at: existingPlayer?.joined_at ?? new Date(),
   });
 
   logger.info(`Player ${userId} joined room ${gameId}`);
@@ -85,6 +103,7 @@ export const removePlayerFromRoom = (gameId: string, userId: string): void => {
   const room = rooms.get(gameId);
   if (!room) return;
 
+  clearPlayerRoundVote(room, userId);
   room.players.delete(userId);
   logger.info(`Player ${userId} left room ${gameId}`);
 
@@ -129,6 +148,8 @@ export const updatePlayerInRoom = (
     display_name?: string;
     avatar_url?: string | null;
     is_spectator?: boolean;
+    is_round_observer?: boolean;
+    observer_reason?: string | null;
   },
 ): void => {
   const room = rooms.get(gameId);
@@ -146,8 +167,65 @@ export const updatePlayerInRoom = (
   if (updates.is_spectator !== undefined) {
     player.is_spectator = updates.is_spectator;
   }
+  if (updates.is_round_observer !== undefined) {
+    player.is_round_observer = updates.is_round_observer;
+  }
+  if (updates.observer_reason !== undefined) {
+    player.observer_reason = updates.observer_reason;
+  }
 
   logger.info(`Player ${userId} updated in room ${gameId}`);
+};
+
+/**
+ * Update the current facilitator flag on all in-memory players.
+ */
+export const setRoomFacilitator = (
+  gameId: string,
+  facilitatorId: string,
+): void => {
+  const room = rooms.get(gameId);
+  if (!room) return;
+
+  room.players.forEach((player) => {
+    player.is_facilitator = player.user_id === facilitatorId;
+  });
+};
+
+/**
+ * Toggle a player's current room spectator mode.
+ */
+export const setPlayerSpectatorMode = (
+  gameId: string,
+  userId: string,
+  isSpectator: boolean,
+): void => {
+  const room = rooms.get(gameId);
+  if (!room) {
+    throw new Error("Game room not found");
+  }
+
+  const player = room.players.get(userId);
+  if (!player) {
+    throw new Error("Player is not in this room");
+  }
+
+  player.is_spectator = isSpectator;
+
+  if (room.current_round && !room.current_round.is_revealed) {
+    if (isSpectator) {
+      clearPlayerRoundVote(room, userId);
+      player.is_round_observer = false;
+      player.observer_reason = null;
+    } else if (!room.current_round.eligible_voter_ids.has(userId)) {
+      player.is_round_observer = true;
+      player.observer_reason = player.observer_reason || "next_round";
+    }
+  }
+
+  logger.info(
+    `Player ${userId} ${isSpectator ? "became spectator" : "became voter"} in room ${gameId}`,
+  );
 };
 
 /**
@@ -159,6 +237,12 @@ export const startVotingRound = (
   issueId: string | null,
 ): void => {
   const room = getRoom(gameId);
+
+  room.players.forEach((player) => {
+    player.is_round_observer = false;
+    player.observer_reason = null;
+  });
+
   const eligibleVoterIds = Array.from(room.players.values())
     .filter((player) => !player.is_spectator)
     .map((player) => player.user_id);
@@ -363,6 +447,12 @@ export const clearCurrentRound = (gameId: string): void => {
   if (!room) return;
 
   room.current_round = null;
+
+  room.players.forEach((player) => {
+    player.is_round_observer = false;
+    player.observer_reason = null;
+  });
+
   logger.info(`Current round cleared in room ${gameId}`);
 };
 
@@ -469,22 +559,33 @@ export const getRoomState = async (gameId: string) => {
     avatar_url: p.avatar_url,
     is_facilitator: p.is_facilitator,
     is_spectator: p.is_spectator,
+    is_round_observer: p.is_round_observer,
+    observer_reason: p.observer_reason,
     is_online: true,
   }));
 
   // Build current round info
   let currentRound = null;
   if (room.current_round) {
-    const votes = Array.from(room.players.keys()).map((userId) => ({
-      user_id: userId,
-      has_voted:
-        room.current_round!.eligible_voter_ids.has(userId) &&
-        room.current_round!.votes.has(userId),
-      card_value: room.current_round!.is_revealed
-        ? room.current_round!.votes.get(userId) || null
-        : null,
-      can_vote: room.current_round!.eligible_voter_ids.has(userId),
-    }));
+    const votes = Array.from(room.players.values()).map((player) => {
+      const canVote =
+        room.current_round!.eligible_voter_ids.has(player.user_id) &&
+        !player.is_spectator &&
+        !player.is_round_observer &&
+        !room.current_round!.is_revealed;
+
+      return {
+        user_id: player.user_id,
+        has_voted:
+          room.current_round!.eligible_voter_ids.has(player.user_id) &&
+          room.current_round!.votes.has(player.user_id),
+        card_value: room.current_round!.is_revealed
+          ? room.current_round!.votes.get(player.user_id) || null
+          : null,
+        can_vote: canVote,
+        observer_reason: player.observer_reason,
+      };
+    });
 
     currentRound = {
       id: room.current_round.id,

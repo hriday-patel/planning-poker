@@ -5,7 +5,7 @@ export const cn = (...classes: Array<string | false | null | undefined>) => {
 export const primaryButtonStyle = {
   background:
     "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
-  color: "white",
+  color: "var(--text-on-accent)",
   boxShadow:
     "0 16px 40px -24px color-mix(in srgb, var(--primary) 70%, transparent)",
 } as const;

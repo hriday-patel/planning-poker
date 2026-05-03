@@ -42,8 +42,9 @@ function CreateGamePageContent() {
 
   const [whoCanReveal, setWhoCanReveal] = useState("all_players");
   const [whoCanManageIssues, setWhoCanManageIssues] = useState("all_players");
+  const [whoCanToggleSpectator, setWhoCanToggleSpectator] =
+    useState("all_players");
   const [autoReveal, setAutoReveal] = useState(false);
-  const [funFeatures, setFunFeatures] = useState(true);
   const [showAverage, setShowAverage] = useState(true);
   const [showCountdown, setShowCountdown] = useState(true);
 
@@ -90,6 +91,10 @@ function CreateGamePageContent() {
       return;
     }
 
+    if (isLoading) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -109,8 +114,8 @@ function CreateGamePageContent() {
               : undefined,
             who_can_reveal: whoCanReveal,
             who_can_manage_issues: whoCanManageIssues,
+            who_can_toggle_spectator: whoCanToggleSpectator,
             auto_reveal: autoReveal,
-            fun_features_enabled: funFeatures,
             show_average: showAverage,
             show_countdown: showCountdown,
           }),
@@ -121,10 +126,12 @@ function CreateGamePageContent() {
 
       if (!response.ok) {
         const message =
-          data?.error?.message ||
-          data?.error ||
-          data?.message ||
-          "Failed to create game";
+          response.status === 429
+            ? "Too many games created. Please wait before creating another game."
+            : data?.error?.message ||
+              data?.error ||
+              data?.message ||
+              "Failed to create game";
 
         throw new Error(
           typeof message === "string" ? message : "Failed to create game",
@@ -285,6 +292,7 @@ function CreateGamePageContent() {
                   <option value="powers-of-2">
                     Powers of 2 (1, 2, 4, 8, 16...)
                   </option>
+                  <option value="normal-0-10">Normal (0, 1, 2, 3...10)</option>
                 </Select>
               </Field>
 
@@ -344,18 +352,25 @@ function CreateGamePageContent() {
                   </Select>
                 </Field>
 
+                <Field
+                  label="Who can choose spectator mode"
+                  helperText="Control whether players can switch themselves between voter and spectator"
+                >
+                  <Select
+                    value={whoCanToggleSpectator}
+                    onChange={(e) => setWhoCanToggleSpectator(e.target.value)}
+                  >
+                    <option value="all_players">All players</option>
+                    <option value="facilitator_only">Only facilitator</option>
+                  </Select>
+                </Field>
+
                 <div className="space-y-3">
                   <ToggleRow
                     checked={autoReveal}
                     label="Auto-reveal cards"
                     description="Show cards automatically after everyone voted"
                     onChange={setAutoReveal}
-                  />
-                  <ToggleRow
-                    checked={funFeatures}
-                    label="Enable fun features"
-                    description="Allow players to throw projectiles to each other"
-                    onChange={setFunFeatures}
                   />
                   <ToggleRow
                     checked={showAverage}

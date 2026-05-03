@@ -152,11 +152,12 @@ export default function FAQPage() {
           </p>
           <a
             href="mailto:support@planningpoker.com"
-            className="inline-flex min-h-11 items-center justify-center rounded-lg border px-5 py-3 text-base font-semibold text-white shadow-sm transition-transform hover:-translate-y-0.5 active:translate-y-0"
+            className="inline-flex min-h-11 items-center justify-center rounded-lg border px-5 py-3 text-base font-semibold shadow-sm transition-transform hover:-translate-y-0.5 active:translate-y-0"
             style={{
               background:
                 "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
               borderColor: "var(--primary)",
+              color: "var(--text-on-accent)",
             }}
           >
             Contact Support

@@ -27,13 +27,14 @@ export function Avatar({
   return (
     <div
       className={cn(
-        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold text-white shadow-sm",
+        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold shadow-sm",
         sizeClasses[size],
         className,
       )}
       style={{
         background:
           "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
+        color: "var(--text-on-accent)",
       }}
       title={name}
       {...props}

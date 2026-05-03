@@ -35,6 +35,7 @@ export enum ClientEvents {
   UPDATE_ISSUE = "UPDATE_ISSUE",
   DELETE_ISSUE = "DELETE_ISSUE",
   TRANSFER_FACILITATOR = "TRANSFER_FACILITATOR",
+  SET_SPECTATOR_MODE = "SET_SPECTATOR_MODE",
 }
 
 export enum ServerEvents {
@@ -66,6 +67,8 @@ export interface PlayerInfo {
   joined_at: Date;
   has_voted?: boolean;
   can_vote?: boolean;
+  is_round_observer?: boolean;
+  observer_reason?: string | null;
 }
 
 export interface VotingRound {
@@ -90,6 +93,7 @@ type BackendVotingRound = {
         has_voted: boolean;
         card_value: string | null;
         can_vote?: boolean;
+        observer_reason?: string | null;
       }>;
   is_revealed: boolean;
 };
@@ -189,6 +193,9 @@ export function useGameSocket(options: UseGameSocketOptions) {
         joined_at: player.joined_at ? new Date(player.joined_at) : new Date(),
         has_voted: player.has_voted ?? roundVote?.has_voted ?? false,
         can_vote: roundVote?.can_vote ?? player.can_vote ?? true,
+        is_round_observer: Boolean(player.is_round_observer),
+        observer_reason:
+          player.observer_reason ?? roundVote?.observer_reason ?? null,
       };
     });
 
@@ -379,8 +386,11 @@ export function useGameSocket(options: UseGameSocketOptions) {
         ServerEvents.PLAYER_UPDATED,
         (data: {
           user_id: string;
-          display_name: string;
-          avatar_url: string | null;
+          display_name?: string;
+          avatar_url?: string | null;
+          is_spectator?: boolean;
+          is_round_observer?: boolean;
+          observer_reason?: string | null;
         }) => {
           logger.log("Player updated:", data);
           updateGameState((prev) => {
@@ -391,8 +401,13 @@ export function useGameSocket(options: UseGameSocketOptions) {
                 p.user_id === data.user_id
                   ? {
                       ...p,
-                      display_name: data.display_name,
-                      avatar_url: data.avatar_url,
+                      display_name: data.display_name ?? p.display_name,
+                      avatar_url: data.avatar_url ?? p.avatar_url,
+                      is_spectator: data.is_spectator ?? p.is_spectator,
+                      is_round_observer:
+                        data.is_round_observer ?? p.is_round_observer,
+                      observer_reason:
+                        data.observer_reason ?? p.observer_reason,
                     }
                   : p,
               ),
@@ -592,7 +607,6 @@ export function useGameSocket(options: UseGameSocketOptions) {
     // Cleanup on unmount
     return () => {
       if (newSocket) {
-        newSocket.emit(ClientEvents.LEAVE_GAME, { game_id: gameId });
         newSocket.close();
       }
     };
@@ -739,6 +753,35 @@ export function useGameSocket(options: UseGameSocketOptions) {
     [socket, gameId],
   );
 
+  const setSpectatorMode = useCallback(
+    (isSpectator: boolean, targetUserId?: string) => {
+      if (!socket) {
+        console.error("Cannot update spectator mode: socket not ready");
+        return;
+      }
+      socket.emit(ClientEvents.SET_SPECTATOR_MODE, {
+        game_id: gameId,
+        target_user_id: targetUserId,
+        is_spectator: isSpectator,
+      });
+    },
+    [socket, gameId],
+  );
+
+  const leaveGame = useCallback(
+    (newFacilitatorId?: string) => {
+      if (!socket) {
+        console.error("Cannot leave game: socket not ready");
+        return;
+      }
+      socket.emit(ClientEvents.LEAVE_GAME, {
+        game_id: gameId,
+        new_facilitator_id: newFacilitatorId,
+      });
+    },
+    [socket, gameId],
+  );
+
   return {
     socket,
     gameState,
@@ -756,6 +799,8 @@ export function useGameSocket(options: UseGameSocketOptions) {
     updateIssue,
     deleteIssue,
     transferFacilitator,
+    setSpectatorMode,
+    leaveGame,
   };
 }
 

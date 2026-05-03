@@ -52,8 +52,8 @@ export interface GameRecord {
   deck_id: string; // Deck ID
   who_can_reveal: GamePermission;
   who_can_manage_issues: GamePermission;
+  who_can_toggle_spectator: GamePermission;
   auto_reveal: boolean;
-  fun_features_enabled: boolean;
   show_average: boolean;
   show_countdown: boolean;
   status: GameStatus;
@@ -70,8 +70,8 @@ export interface CreateGamePayload {
   voting_system?: string;
   who_can_reveal?: GamePermission;
   who_can_manage_issues?: GamePermission;
+  who_can_toggle_spectator?: GamePermission;
   auto_reveal?: boolean;
-  fun_features_enabled?: boolean;
   show_average?: boolean;
   show_countdown?: boolean;
 }
@@ -84,8 +84,8 @@ export interface UpdateGamePayload {
   facilitator_id?: string;
   who_can_reveal?: GamePermission;
   who_can_manage_issues?: GamePermission;
+  who_can_toggle_spectator?: GamePermission;
   auto_reveal?: boolean;
-  fun_features_enabled?: boolean;
   show_average?: boolean;
   show_countdown?: boolean;
   status?: GameStatus;
@@ -164,6 +164,12 @@ export const SYSTEM_DECKS: Omit<Deck, "id" | "created_at">[] = [
   {
     name: "Powers of 2",
     values: ["0", "1", "2", "4", "8", "16", "32", "64", "?", "☕"],
+    is_default: true,
+    created_by: null,
+  },
+  {
+    name: "Normal (0-10)",
+    values: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
     is_default: true,
     created_by: null,
   },

@@ -548,8 +548,7 @@ Consider adding rate limiting for:
 
 ### Planned Features
 
-- [ ] Spectator mode support (join without voting)
-- [ ] Fun features (projectile throwing)
+- [x] Spectator mode support (join without voting)
 - [ ] Voting history in-game view
 - [ ] Export results to CSV/PDF
 - [ ] Integration with JIRA/Linear for issue import

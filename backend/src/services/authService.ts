@@ -22,6 +22,7 @@ const INVITE_TOKEN_TTL_SECONDS = parseInt(
 );
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 const INVITE_TOKEN_NAMESPACE = "invite";
+const ACTIVE_INVITE_TOKEN_NAMESPACE = "invite:active";
 const SESSION_NAMESPACE = "session";
 const OAUTH_STATE_NAMESPACE = "oauth:state";
 
@@ -283,6 +284,21 @@ export const createInviteLink = async (
 ): Promise<InviteLinkResponse> => {
   await getInvitableGame(gameId, invitedBy);
 
+  const activeInviteKey = `${ACTIVE_INVITE_TOKEN_NAMESPACE}:${gameId}:${invitedBy}`;
+  const activeToken = await redisClient.get(activeInviteKey);
+  if (activeToken) {
+    const activeInvite = await validateInviteToken(activeToken);
+    if (activeInvite) {
+      return {
+        inviteUrl: `${FRONTEND_URL}/game/${gameId}?invite=${activeToken}`,
+        expiresAt: activeInvite.expiresAt,
+        tokenId: activeInvite.tokenId,
+      };
+    }
+
+    await redisClient.del(activeInviteKey);
+  }
+
   const token = crypto.randomBytes(32).toString("hex");
   const tokenId = crypto.randomUUID();
   const expiresAt = new Date(
@@ -302,6 +318,7 @@ export const createInviteLink = async (
     INVITE_TOKEN_TTL_SECONDS,
     JSON.stringify(record),
   );
+  await redisClient.setEx(activeInviteKey, INVITE_TOKEN_TTL_SECONDS, token);
 
   return {
     inviteUrl: `${FRONTEND_URL}/game/${gameId}?invite=${token}`,

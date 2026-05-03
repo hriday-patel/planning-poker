@@ -24,8 +24,8 @@ Implemented the in-game Game Settings modal as specified in Section 5.4 of the P
   "facilitator_id": "string (optional)",
   "who_can_reveal": "all_players | only_facilitator (optional)",
   "who_can_manage_issues": "all_players | only_facilitator (optional)",
+  "who_can_toggle_spectator": "all_players | only_facilitator (optional)",
   "auto_reveal": "boolean (optional)",
-  "fun_features_enabled": "boolean (optional)",
   "show_average": "boolean (optional)",
   "show_countdown": "boolean (optional)",
   "status": "active | archived (optional)"
@@ -105,10 +105,10 @@ interface GameSettingsModalProps {
 2. **Permission Settings**
    - Who can reveal cards (All players / Only facilitator)
    - Who can manage issues (All players / Only facilitator)
+   - Who can choose spectator mode (All players / Only facilitator)
 
 3. **Toggle Settings**
    - Auto-reveal cards
-   - Enable fun features
    - Show average in results
    - Show countdown animation
 
@@ -210,21 +210,21 @@ interface GameSettingsModalProps {
    - All players: Any player can add, edit, delete issues
    - Only facilitator: Only facilitator can manage issues
 
+3. **Who can choose spectator mode**
+   - All players: Any player can switch themself between voter and spectator
+   - Only facilitator: Only facilitator can change player voting roles
+
 ### Feature Toggles
 
 1. **Auto-reveal cards**
    - When ON: Cards automatically reveal after all players vote
    - When OFF: Manual reveal required
 
-2. **Enable fun features**
-   - When ON: Players can throw projectiles (placeholder for future feature)
-   - When OFF: Fun features disabled
-
-3. **Show average in results**
+2. **Show average in results**
    - When ON: Average value displayed in voting results
    - When OFF: Average hidden
 
-4. **Show countdown animation**
+3. **Show countdown animation**
    - When ON: 3-2-1 countdown shown before revealing cards
    - When OFF: Cards reveal immediately
 

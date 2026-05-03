@@ -16,7 +16,8 @@ export interface JoinGamePayload {
 
 export interface LeaveGamePayload {
   game_id: string;
-  user_id: string;
+  user_id?: string;
+  new_facilitator_id?: string;
 }
 
 export interface SubmitVotePayload {
@@ -41,11 +42,17 @@ export interface UpdateGameSettingsPayload {
     name?: string;
     who_can_reveal?: string;
     who_can_manage_issues?: string;
+    who_can_toggle_spectator?: string;
     auto_reveal?: boolean;
-    fun_features_enabled?: boolean;
     show_average?: boolean;
     show_countdown?: boolean;
   };
+}
+
+export interface SetSpectatorModePayload {
+  game_id: string;
+  target_user_id?: string;
+  is_spectator: boolean;
 }
 
 export interface StartTimerPayload {
@@ -143,8 +150,8 @@ export interface GameSettingsUpdatedPayload {
     name?: string;
     who_can_reveal?: string;
     who_can_manage_issues?: string;
+    who_can_toggle_spectator?: string;
     auto_reveal?: boolean;
-    fun_features_enabled?: boolean;
     show_average?: boolean;
     show_countdown?: boolean;
   };
@@ -192,6 +199,9 @@ export interface PlayerUpdatedPayload {
   user_id: string;
   display_name?: string;
   avatar_url?: string | null;
+  is_spectator?: boolean;
+  is_round_observer?: boolean;
+  observer_reason?: string | null;
 }
 
 export interface FacilitatorChangedPayload {
@@ -206,6 +216,8 @@ export interface GameStatePayload {
     avatar_url: string | null;
     is_facilitator: boolean;
     is_spectator: boolean;
+    is_round_observer: boolean;
+    observer_reason: string | null;
     is_online: boolean;
   }>;
   issues: any[]; // All issues
@@ -217,6 +229,7 @@ export interface GameStatePayload {
       has_voted: boolean;
       card_value: string | null; // null until revealed
       can_vote: boolean;
+      observer_reason: string | null;
     }>;
     is_revealed: boolean;
   } | null;
@@ -239,6 +252,7 @@ export enum ClientEvents {
   DELETE_ISSUE = "DELETE_ISSUE",
   ADD_ISSUE = "ADD_ISSUE",
   TRANSFER_FACILITATOR = "TRANSFER_FACILITATOR",
+  SET_SPECTATOR_MODE = "SET_SPECTATOR_MODE",
 }
 
 export enum ServerEvents {
@@ -294,6 +308,8 @@ export interface RoomState {
       avatar_url: string | null;
       is_facilitator: boolean;
       is_spectator: boolean;
+      is_round_observer: boolean;
+      observer_reason?: string | null;
       joined_at: Date;
     }
   >;

@@ -248,9 +248,10 @@ export default function ProfileDropdown({
                   aria-label="Toggle spectator mode"
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    className={`inline-block h-4 w-4 transform rounded-full transition-transform ${
                       spectatorMode ? "translate-x-5" : "translate-x-1"
                     }`}
+                    style={{ backgroundColor: "var(--control-knob)" }}
                   />
                 </button>
               </div>

@@ -41,8 +41,8 @@ CREATE TABLE games (
     deck_id UUID NOT NULL REFERENCES decks(id) ON DELETE RESTRICT,
     who_can_reveal VARCHAR(20) DEFAULT 'all_players' CHECK (who_can_reveal IN ('all_players', 'facilitator_only')),
     who_can_manage_issues VARCHAR(20) DEFAULT 'all_players' CHECK (who_can_manage_issues IN ('all_players', 'facilitator_only')),
+    who_can_toggle_spectator VARCHAR(20) DEFAULT 'all_players' CHECK (who_can_toggle_spectator IN ('all_players', 'facilitator_only')),
     auto_reveal BOOLEAN DEFAULT FALSE,
-    fun_features_enabled BOOLEAN DEFAULT TRUE,
     show_average BOOLEAN DEFAULT TRUE,
     show_countdown BOOLEAN DEFAULT TRUE,
     status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'archived')),
@@ -133,7 +133,8 @@ INSERT INTO decks (name, values, is_default, created_by) VALUES
     ('Fibonacci', ARRAY['0', '1', '2', '3', '5', '8', '13', '21', '34', '55', '89', '?', '☕'], TRUE, NULL),
     ('Modified Fibonacci', ARRAY['0', '½', '1', '2', '3', '5', '8', '13', '20', '40', '100', '?', '☕'], TRUE, NULL),
     ('T-shirts', ARRAY['XS', 'S', 'M', 'L', 'XL', '?', '☕'], TRUE, NULL),
-    ('Powers of 2', ARRAY['0', '1', '2', '4', '8', '16', '32', '64', '?', '☕'], TRUE, NULL);
+    ('Powers of 2', ARRAY['0', '1', '2', '4', '8', '16', '32', '64', '?', '☕'], TRUE, NULL),
+    ('Normal (0-10)', ARRAY['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], TRUE, NULL);
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

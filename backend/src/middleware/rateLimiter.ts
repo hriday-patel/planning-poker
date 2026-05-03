@@ -88,4 +88,35 @@ export const gameCreationRateLimiter = rateLimit({
   },
 });
 
+/**
+ * Rate limiter for invite link generation.
+ * Invite generation is not game creation, so it must not consume the stricter
+ * game-creation quota. Key authenticated users by user ID to avoid shared-IP
+ * teams blocking each other while still retaining an IP fallback.
+ */
+export const inviteLinkRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req) => {
+    const userId = (req as any).userId || (req as any).user?.userId;
+    return userId ? `user:${userId}` : `ip:${req.ip}`;
+  },
+  message: {
+    success: false,
+    error: "Too many invite links requested, please try again later",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    const userId = (req as any).userId || (req as any).user?.userId;
+    logger.warn(
+      `Invite link rate limit exceeded for ${userId ? `user: ${userId}` : `IP: ${req.ip}`}`,
+    );
+    res.status(429).json({
+      success: false,
+      error: "Too many invite links requested, please try again in 15 minutes",
+    });
+  },
+});
+
 // Made with Bob

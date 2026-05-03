@@ -122,8 +122,8 @@ router.post(
         deck_id,
         who_can_reveal,
         who_can_manage_issues,
+        who_can_toggle_spectator,
         auto_reveal,
-        fun_features_enabled,
         show_average,
         show_countdown,
       } = req.body;
@@ -142,8 +142,8 @@ router.post(
         deck_id: deck_id ?? voting_system,
         who_can_reveal,
         who_can_manage_issues,
+        who_can_toggle_spectator,
         auto_reveal,
-        fun_features_enabled,
         show_average,
         show_countdown,
       });

@@ -44,7 +44,11 @@ export default function InviteModal({ gameId, onClose }: InviteModalProps) {
         const data = await response.json().catch(() => null);
 
         if (!response.ok) {
-          throw new Error(data?.error || "Failed to generate invite link");
+          throw new Error(
+            response.status === 429
+              ? "Too many invite links requested. Please wait before generating another link."
+              : data?.error || "Failed to generate invite link",
+          );
         }
 
         setInvite(data.invite);
@@ -120,7 +124,7 @@ export default function InviteModal({ gameId, onClose }: InviteModalProps) {
                       copied
                         ? {
                             backgroundColor: "var(--success)",
-                            color: "white",
+                            color: "var(--text-on-accent)",
                           }
                         : undefined
                     }

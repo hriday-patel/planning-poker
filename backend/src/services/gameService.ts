@@ -32,6 +32,11 @@ const VOTING_SYSTEM_NAMES: Record<string, string> = {
   modifiedfibonacci: "Modified Fibonacci",
   tshirts: "T-shirts",
   powersof2: "Powers of 2",
+  normal: "Normal (0-10)",
+  normal010: "Normal (0-10)",
+  zerototen: "Normal (0-10)",
+  numeric: "Normal (0-10)",
+  "010": "Normal (0-10)",
 };
 
 const normalizeVotingSystem = (value: string) => {
@@ -87,8 +92,9 @@ export const createGame = async (
     const whoCanReveal = payload.who_can_reveal || GamePermission.ALL_PLAYERS;
     const whoCanManageIssues =
       payload.who_can_manage_issues || GamePermission.ALL_PLAYERS;
+    const whoCanToggleSpectator =
+      payload.who_can_toggle_spectator || GamePermission.ALL_PLAYERS;
     const autoReveal = payload.auto_reveal ?? false;
-    const funFeaturesEnabled = payload.fun_features_enabled ?? true;
     const showAverage = payload.show_average ?? true;
     const showCountdown = payload.show_countdown ?? true;
 
@@ -101,8 +107,8 @@ export const createGame = async (
       const result = await client.query(
         `INSERT INTO games (
           name, creator_id, facilitator_id, deck_id,
-          who_can_reveal, who_can_manage_issues, auto_reveal,
-          fun_features_enabled, show_average, show_countdown, status
+          who_can_reveal, who_can_manage_issues, who_can_toggle_spectator,
+          auto_reveal, show_average, show_countdown, status
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
         RETURNING *`,
@@ -113,8 +119,8 @@ export const createGame = async (
           deckId,
           whoCanReveal,
           whoCanManageIssues,
+          whoCanToggleSpectator,
           autoReveal,
-          funFeaturesEnabled,
           showAverage,
           showCountdown,
           GameStatus.ACTIVE,
@@ -206,8 +212,8 @@ export const getGameDetails = async (
       deck_id: row.deck_id,
       who_can_reveal: row.who_can_reveal,
       who_can_manage_issues: row.who_can_manage_issues,
+      who_can_toggle_spectator: row.who_can_toggle_spectator,
       auto_reveal: row.auto_reveal,
-      fun_features_enabled: row.fun_features_enabled,
       show_average: row.show_average,
       show_countdown: row.show_countdown,
       status: row.status,
@@ -290,14 +296,14 @@ export const updateGame = async (
       values.push(payload.who_can_manage_issues);
     }
 
+    if (payload.who_can_toggle_spectator !== undefined) {
+      updates.push(`who_can_toggle_spectator = $${paramCount++}`);
+      values.push(payload.who_can_toggle_spectator);
+    }
+
     if (payload.auto_reveal !== undefined) {
       updates.push(`auto_reveal = $${paramCount++}`);
       values.push(payload.auto_reveal);
-    }
-
-    if (payload.fun_features_enabled !== undefined) {
-      updates.push(`fun_features_enabled = $${paramCount++}`);
-      values.push(payload.fun_features_enabled);
     }
 
     if (payload.show_average !== undefined) {
@@ -408,12 +414,34 @@ export const addGameParticipant = async (
 };
 
 /**
+ * Mark a user as no longer active in a game after an explicit leave action.
+ */
+export const markGameParticipantInactive = async (
+  gameId: string,
+  userId: string,
+): Promise<void> => {
+  try {
+    await db.query(
+      `UPDATE game_participants
+       SET is_active = FALSE, last_seen_at = NOW()
+       WHERE game_id = $1 AND user_id = $2`,
+      [gameId, userId],
+    );
+
+    logger.info(`User ${userId} left game ${gameId}`);
+  } catch (error) {
+    logger.error("Error marking game participant inactive:", error);
+    throw error;
+  }
+};
+
+/**
  * Check if user has permission to perform an action in a game
  */
 export const hasGamePermission = async (
   gameId: string,
   userId: string,
-  action: "reveal" | "manage_issues",
+  action: "reveal" | "manage_issues" | "toggle_spectator",
 ): Promise<boolean> => {
   try {
     const game = await getGameById(gameId);
@@ -431,6 +459,8 @@ export const hasGamePermission = async (
       return game.who_can_reveal === GamePermission.ALL_PLAYERS;
     } else if (action === "manage_issues") {
       return game.who_can_manage_issues === GamePermission.ALL_PLAYERS;
+    } else if (action === "toggle_spectator") {
+      return game.who_can_toggle_spectator === GamePermission.ALL_PLAYERS;
     }
 
     return false;

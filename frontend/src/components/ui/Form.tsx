@@ -135,8 +135,9 @@ export function ToggleRow({
           className="sr-only"
         />
         <span
-          className="inline-block h-5 w-5 rounded-full bg-white transition-transform"
+          className="inline-block h-5 w-5 rounded-full transition-transform"
           style={{
+            backgroundColor: "var(--control-knob)",
             transform: checked ? "translateX(22px)" : "translateX(2px)",
           }}
         />

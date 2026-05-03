@@ -31,8 +31,8 @@ export interface Game {
   deck_id: string;
   who_can_reveal: GamePermission;
   who_can_manage_issues: GamePermission;
+  who_can_toggle_spectator: GamePermission;
   auto_reveal: boolean;
-  fun_features_enabled: boolean;
   show_average: boolean;
   show_countdown: boolean;
   status: GameStatus;
@@ -53,6 +53,8 @@ export interface Player {
   card_value: string | null; // null until revealed
   is_online: boolean;
   can_vote?: boolean;
+  is_round_observer?: boolean;
+  observer_reason?: string | null;
 }
 
 export interface Issue {

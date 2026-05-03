@@ -22,6 +22,7 @@ interface GameSettingsModalProps {
   currentUserId: string | null;
   onUpdateSettings: (settings: any) => void;
   onTransferFacilitator: (newFacilitatorId: string) => void;
+  onSetSpectatorMode: (isSpectator: boolean, targetUserId?: string) => void;
 }
 
 export default function GameSettingsModal({
@@ -32,12 +33,13 @@ export default function GameSettingsModal({
   currentUserId,
   onUpdateSettings,
   onTransferFacilitator,
+  onSetSpectatorMode,
 }: GameSettingsModalProps) {
   const [settings, setSettings] = useState({
     who_can_reveal: "all_players" as GamePermission,
     who_can_manage_issues: "all_players" as GamePermission,
+    who_can_toggle_spectator: "all_players" as GamePermission,
     auto_reveal: false,
-    fun_features_enabled: true,
     show_average: true,
     show_countdown: true,
   });
@@ -49,8 +51,8 @@ export default function GameSettingsModal({
       setSettings({
         who_can_reveal: game.who_can_reveal,
         who_can_manage_issues: game.who_can_manage_issues,
+        who_can_toggle_spectator: game.who_can_toggle_spectator,
         auto_reveal: game.auto_reveal,
-        fun_features_enabled: game.fun_features_enabled,
         show_average: game.show_average,
         show_countdown: game.show_countdown,
       });
@@ -64,8 +66,8 @@ export default function GameSettingsModal({
   const hasChanges =
     settings.who_can_reveal !== game.who_can_reveal ||
     settings.who_can_manage_issues !== game.who_can_manage_issues ||
+    settings.who_can_toggle_spectator !== game.who_can_toggle_spectator ||
     settings.auto_reveal !== game.auto_reveal ||
-    settings.fun_features_enabled !== game.fun_features_enabled ||
     settings.show_average !== game.show_average ||
     settings.show_countdown !== game.show_countdown ||
     selectedFacilitator !== game.facilitator_id;
@@ -152,6 +154,23 @@ export default function GameSettingsModal({
               <option value="facilitator_only">Only facilitator</option>
             </Select>
           </Field>
+
+          <Field label="Choose spectator mode">
+            <Select
+              value={settings.who_can_toggle_spectator}
+              onChange={(event) =>
+                setSettings({
+                  ...settings,
+                  who_can_toggle_spectator: event.target
+                    .value as GamePermission,
+                })
+              }
+              disabled={!isFacilitator}
+            >
+              <option value="all_players">All players</option>
+              <option value="facilitator_only">Only facilitator</option>
+            </Select>
+          </Field>
         </div>
 
         <div className="grid gap-3">
@@ -162,15 +181,6 @@ export default function GameSettingsModal({
             description="Reveal automatically after every eligible player votes."
             onChange={(checked) =>
               setSettings({ ...settings, auto_reveal: checked })
-            }
-          />
-          <ToggleRow
-            checked={settings.fun_features_enabled}
-            disabled={!isFacilitator}
-            label="Enable fun features"
-            description="Allow playful table interactions during voting."
-            onChange={(checked) =>
-              setSettings({ ...settings, fun_features_enabled: checked })
             }
           />
           <ToggleRow
@@ -192,6 +202,60 @@ export default function GameSettingsModal({
             }
           />
         </div>
+
+        {isFacilitator && (
+          <section
+            className="rounded-lg border p-4"
+            style={{
+              backgroundColor: "var(--surface-secondary)",
+              borderColor: "var(--border-subtle)",
+            }}
+          >
+            <div className="mb-3">
+              <h3 className="font-semibold">Player voting roles</h3>
+              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
+                Move players between voter and spectator for this room.
+              </p>
+            </div>
+            <div className="grid gap-2">
+              {players.map((player) => (
+                <div
+                  key={player.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                  style={{
+                    backgroundColor: "var(--surface-primary)",
+                    borderColor: "var(--border-subtle)",
+                  }}
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {player.display_name}
+                      {player.id === game.facilitator_id
+                        ? " (Facilitator)"
+                        : ""}
+                    </p>
+                    <p
+                      className="text-xs"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      {player.is_spectator ? "Spectator" : "Voter"}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant={player.is_spectator ? "primary" : "secondary"}
+                    size="sm"
+                    onClick={() =>
+                      onSetSpectatorMode(!player.is_spectator, player.id)
+                    }
+                  >
+                    {player.is_spectator ? "Make voter" : "Make spectator"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       <ModalFooter layout={isFacilitator ? "split" : "single"}>

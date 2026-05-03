@@ -18,12 +18,12 @@ Stores user profiles authenticated via IBM W3ID SSO.
 
 #### decks
 
-Voting card decks (Fibonacci, T-shirts, Powers of 2, Custom).
+Voting card decks (Fibonacci, T-shirts, Powers of 2, Normal 0-10, Custom).
 
 - **Primary Key**: `id` (UUID)
 - **Key Fields**: name, values (array), is_default, created_by
 - **Purpose**: Define available voting systems
-- **Default Decks**: 4 pre-populated system decks
+- **Default Decks**: 5 pre-populated system decks
 
 #### games
 
@@ -31,7 +31,7 @@ Planning poker game sessions.
 
 - **Primary Key**: `id` (UUID - used in shareable URLs)
 - **Key Fields**: name, creator_id, facilitator_id, deck_id, settings
-- **Settings**: who_can_reveal, who_can_manage_issues, auto_reveal, fun_features_enabled, show_average, show_countdown
+- **Settings**: who_can_reveal, who_can_manage_issues, who_can_toggle_spectator, auto_reveal, show_average, show_countdown
 - **Purpose**: Game configuration and state management
 
 #### game_participants
@@ -119,6 +119,8 @@ Automatic `updated_at` timestamp triggers on:
 ## Migration Files
 
 - **001_initial_schema.sql**: Creates all tables, indexes, triggers, and default data
+- **002_add_decks_name_unique_constraint.sql**: Adds the deck-name unique constraint expected by deck initialization on older local databases
+- **003_game_stability_settings.sql**: Adds spectator-toggle settings, removes the old fun-feature column, and inserts the Normal (0-10) deck
 - **001_initial_schema_down.sql**: Rollback script to drop all database objects
 
 ## Running Migrations
@@ -126,8 +128,10 @@ Automatic `updated_at` timestamp triggers on:
 ### Apply Migration
 
 ```bash
-psql -U postgres -d planning_poker -f database/migrations/001_initial_schema.sql
+npm run db:migrate
 ```
+
+The migration runner reads database host/name settings from `backend/.env.development` plus `backend/.env.local`, creates a `schema_migrations` tracker table, and applies unapplied SQL migrations in filename order. It uses `DB_MIGRATION_USER`/`DB_MIGRATION_PASSWORD` when set, otherwise it defaults to the local `postgres` owner account for schema changes.
 
 ### Rollback Migration
 

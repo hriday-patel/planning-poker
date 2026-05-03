@@ -22,6 +22,7 @@ import {
   UpdateIssuePayload,
   DeleteIssuePayload,
   TransferFacilitatorPayload,
+  SetSpectatorModePayload,
 } from "../types/websocket.types";
 import {
   addPlayerToRoom,
@@ -33,6 +34,8 @@ import {
   haveAllPlayersVoted,
   calculateVotingResults,
   clearCurrentRound,
+  setPlayerSpectatorMode,
+  setRoomFacilitator,
   startTimer,
   pauseTimer,
   stopTimer,
@@ -41,6 +44,7 @@ import {
   updateGame,
   hasGamePermission,
   addGameParticipant,
+  markGameParticipantInactive,
 } from "../services/gameService";
 import {
   createIssue,
@@ -98,6 +102,12 @@ export const registerHandlers = (io: SocketIOServer) => {
             is_spectator:
               gameState.players.find((p) => p.id === userId)?.is_spectator ||
               false,
+            is_round_observer:
+              gameState.players.find((p) => p.id === userId)
+                ?.is_round_observer || false,
+            observer_reason:
+              gameState.players.find((p) => p.id === userId)?.observer_reason ||
+              null,
           },
         });
 
@@ -122,7 +132,38 @@ export const registerHandlers = (io: SocketIOServer) => {
       ClientEvents.LEAVE_GAME,
       async (payload: LeaveGamePayload) => {
         try {
-          const { game_id } = payload;
+          const { game_id, new_facilitator_id } = payload;
+
+          const currentState = await getRoomState(game_id);
+          const remainingPlayers = currentState.players.filter(
+            (player) => player.id !== userId,
+          );
+          const leavingFacilitator =
+            currentState.game.facilitator_id === userId;
+          let facilitatorChangedTo: string | null = null;
+
+          if (leavingFacilitator && remainingPlayers.length > 0) {
+            if (!new_facilitator_id) {
+              throw new Error(
+                "Choose another facilitator before leaving this game",
+              );
+            }
+
+            const successor = remainingPlayers.find(
+              (player) => player.id === new_facilitator_id,
+            );
+            if (!successor) {
+              throw new Error("New facilitator must be an active player");
+            }
+
+            await updateGame(game_id, userId, {
+              facilitator_id: new_facilitator_id,
+            });
+            setRoomFacilitator(game_id, new_facilitator_id);
+            facilitatorChangedTo = new_facilitator_id;
+          }
+
+          await markGameParticipantInactive(game_id, userId);
 
           // Remove player from room
           removePlayerFromRoom(game_id, userId);
@@ -130,10 +171,23 @@ export const registerHandlers = (io: SocketIOServer) => {
           // Leave Socket.IO room
           authSocket.leave(game_id);
 
+          if (facilitatorChangedTo) {
+            io.to(game_id).emit(ServerEvents.FACILITATOR_CHANGED, {
+              new_facilitator_id: facilitatorChangedTo,
+            });
+          }
+
           // Notify other players
           authSocket.broadcast.to(game_id).emit(ServerEvents.PLAYER_LEFT, {
             user_id: userId,
           });
+
+          if (remainingPlayers.length > 0) {
+            io.to(game_id).emit(
+              ServerEvents.GAME_STATE,
+              await getRoomState(game_id),
+            );
+          }
 
           logger.info(`User ${userId} left game ${game_id}`);
         } catch (error: any) {
@@ -323,6 +377,10 @@ export const registerHandlers = (io: SocketIOServer) => {
             round_id: roundId,
             issue_id,
           });
+          io.to(game_id).emit(
+            ServerEvents.GAME_STATE,
+            await getRoomState(game_id),
+          );
 
           logger.info(`New round ${roundId} started in game ${game_id}`);
         } catch (error: any) {
@@ -553,6 +611,7 @@ export const registerHandlers = (io: SocketIOServer) => {
           await updateGame(game_id, userId, {
             facilitator_id: new_facilitator_id,
           });
+          setRoomFacilitator(game_id, new_facilitator_id);
 
           // Broadcast to all players
           io.to(game_id).emit(ServerEvents.FACILITATOR_CHANGED, {
@@ -570,6 +629,63 @@ export const registerHandlers = (io: SocketIOServer) => {
           logger.error("Error transferring facilitator:", error);
           authSocket.emit(ServerEvents.ERROR, {
             message: error.message || "Failed to transfer facilitator",
+          });
+        }
+      },
+    );
+
+    /**
+     * SET_SPECTATOR_MODE - Update a player's current room spectator state
+     */
+    authSocket.on(
+      ClientEvents.SET_SPECTATOR_MODE,
+      async (payload: SetSpectatorModePayload) => {
+        try {
+          const { game_id, is_spectator } = payload;
+          const targetUserId = payload.target_user_id || userId;
+          const gameState = await getRoomState(game_id);
+          const isFacilitator = gameState.game.facilitator_id === userId;
+          const isSelfToggle = targetUserId === userId;
+
+          if (!gameState.players.some((player) => player.id === targetUserId)) {
+            throw new Error("Player is not in this room");
+          }
+
+          if (!isFacilitator) {
+            if (!isSelfToggle) {
+              throw new Error("Only the facilitator can update other players");
+            }
+
+            const canToggleSelf = await hasGamePermission(
+              game_id,
+              userId,
+              "toggle_spectator",
+            );
+            if (!canToggleSelf) {
+              throw new Error(
+                "Only the facilitator can change spectator mode in this game",
+              );
+            }
+          }
+
+          setPlayerSpectatorMode(game_id, targetUserId, is_spectator);
+
+          io.to(game_id).emit(ServerEvents.PLAYER_UPDATED, {
+            user_id: targetUserId,
+            is_spectator,
+          });
+          io.to(game_id).emit(
+            ServerEvents.GAME_STATE,
+            await getRoomState(game_id),
+          );
+
+          logger.info(
+            `Spectator mode updated for ${targetUserId} in ${game_id} by ${userId}`,
+          );
+        } catch (error: any) {
+          logger.error("Error updating spectator mode:", error);
+          authSocket.emit(ServerEvents.ERROR, {
+            message: error.message || "Failed to update spectator mode",
           });
         }
       },
