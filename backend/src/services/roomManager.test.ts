@@ -6,6 +6,7 @@ import {
   getRoomState,
   haveAllPlayersVoted,
   setPlayerSpectatorMode,
+  skipVotingRound,
   startVotingRound,
   submitVote,
 } from "./roomManager";
@@ -149,6 +150,43 @@ describe("roomManager voting eligibility", () => {
       nextState.current_round?.votes.find((vote) => vote.user_id === "u2")
         ?.can_vote,
     ).toBe(true);
+  });
+
+  it("skips the active issue round and clears submitted votes", async () => {
+    const gameId = "skip-round-game";
+
+    await addPlayerToRoom(gameId, "socket-u1", "u1");
+    await addPlayerToRoom(gameId, "socket-u2", "u2");
+    startVotingRound(gameId, "round-1", "issue-1");
+
+    submitVote(gameId, "u1", "5");
+
+    const skippedRound = skipVotingRound(gameId, "round-1", "issue-1");
+    const state = await getRoomState(gameId);
+
+    expect(skippedRound).toEqual({
+      round_id: "round-1",
+      issue_id: "issue-1",
+    });
+    expect(state.current_round).toBeNull();
+    expect(state.players.every((player) => !player.is_round_observer)).toBe(
+      true,
+    );
+  });
+
+  it("does not skip after every eligible player has voted", async () => {
+    const gameId = "skip-complete-round-game";
+
+    await addPlayerToRoom(gameId, "socket-u1", "u1");
+    await addPlayerToRoom(gameId, "socket-u2", "u2");
+    startVotingRound(gameId, "round-1", "issue-1");
+
+    submitVote(gameId, "u1", "3");
+    submitVote(gameId, "u2", "5");
+
+    expect(() => skipVotingRound(gameId, "round-1", "issue-1")).toThrow(
+      "Cannot skip after all eligible players have voted",
+    );
   });
 });
 

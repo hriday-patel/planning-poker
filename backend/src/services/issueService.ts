@@ -604,6 +604,81 @@ export const startIssueVotingRound = async (
   }
 };
 
+export const skipIssueVotingRound = async (
+  gameId: string,
+  roundId: string,
+  issueId: string,
+): Promise<IssueRecord> => {
+  try {
+    const client = await db.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const issueResult = await client.query(
+        "SELECT * FROM issues WHERE id = $1 AND game_id = $2 FOR UPDATE",
+        [issueId, gameId],
+      );
+
+      if (issueResult.rows.length === 0) {
+        throw new Error("Issue not found");
+      }
+
+      const issue = issueResult.rows[0] as IssueRecord;
+      if (issue.status !== IssueStatus.VOTING) {
+        throw new Error("Only the ongoing voting issue can be skipped");
+      }
+
+      const roundResult = await client.query(
+        `SELECT * FROM voting_rounds
+         WHERE id = $1 AND game_id = $2 AND issue_id = $3
+         FOR UPDATE`,
+        [roundId, gameId, issueId],
+      );
+
+      if (roundResult.rows.length === 0) {
+        throw new Error("Voting round not found");
+      }
+
+      const round = roundResult.rows[0];
+      if (round.revealed_at) {
+        throw new Error("Cannot skip after cards have been revealed");
+      }
+
+      if (!round.is_active) {
+        throw new Error("This voting round is no longer active");
+      }
+
+      await client.query("DELETE FROM votes WHERE round_id = $1", [roundId]);
+      await client.query(
+        "UPDATE voting_rounds SET is_active = FALSE WHERE id = $1",
+        [roundId],
+      );
+
+      const updatedIssueResult = await client.query(
+        `UPDATE issues
+         SET status = $1
+         WHERE id = $2 AND game_id = $3
+         RETURNING *`,
+        [IssueStatus.PENDING, issueId, gameId],
+      );
+
+      await client.query("COMMIT");
+
+      logger.info(`Voting round ${roundId} skipped for issue ${issueId}`);
+      return updatedIssueResult.rows[0] as IssueRecord;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    logger.error("Error skipping issue voting round:", error);
+    throw error;
+  }
+};
+
 export const completeIssueVotingRound = async (
   gameId: string,
   roundId: string,

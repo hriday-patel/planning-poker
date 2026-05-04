@@ -119,6 +119,7 @@ export default function GameRoomPage() {
     isReconnecting,
     submitVote,
     revealCards,
+    skipIssue,
     startNewRound,
     updateGameSettings,
     transferFacilitator,
@@ -170,6 +171,20 @@ export default function GameRoomPage() {
           window.setTimeout(() => setShowCountdown(false), 220);
         }
       }, 700);
+    },
+    onIssueSkipped: () => {
+      setVotingResults(null);
+      setShowCountdown(false);
+      setCountdownNumber(3);
+      setCustomEstimate("");
+      setEstimateStatus(null);
+      setActionError(null);
+      setGameState((prev) => ({
+        ...prev,
+        currentIssue: null,
+        selectedCard: null,
+        votingPhase: VotingPhase.WAITING,
+      }));
     },
     onNewRound: (_roundId, issueId) => {
       setVotingResults(null);
@@ -298,6 +313,12 @@ export default function GameRoomPage() {
     allPlayersVoted &&
     currentUserCanReveal &&
     !gameState.game?.auto_reveal;
+  const canSkipIssue =
+    isConnected &&
+    currentUserIsFacilitator &&
+    Boolean(activeRound?.issue_id) &&
+    !activeRound?.is_revealed &&
+    !allPlayersVoted;
   const displayedEstimate =
     activeIssue?.final_estimate || votingResults?.final_estimate || null;
   const timerRemaining = wsGameState?.timer?.remaining_seconds ?? null;
@@ -654,6 +675,32 @@ export default function GameRoomPage() {
     revealCards();
   };
 
+  const handleSkipIssue = () => {
+    if (!activeRound?.issue_id || !activeIssue) {
+      setActionError("Start voting an issue before skipping");
+      return;
+    }
+
+    if (!currentUserIsFacilitator) {
+      setActionError("Only the facilitator can skip issue voting");
+      return;
+    }
+
+    if (activeRound.is_revealed) {
+      setActionError("Cannot skip after cards have been revealed");
+      return;
+    }
+
+    if (allPlayersVoted) {
+      setActionError("Cannot skip after all eligible players have voted");
+      return;
+    }
+
+    setVotingResults(null);
+    setActionError(null);
+    skipIssue();
+  };
+
   const handlePickNextIssue = () => {
     if (!isConnected) {
       setActionError("Connect to the game before starting a vote");
@@ -838,6 +885,7 @@ export default function GameRoomPage() {
             autoReveal={gameState.game.auto_reveal}
             canPickCards={canPickCards}
             canRevealCards={canRevealCards}
+            canSkipIssue={canSkipIssue}
             countdownNumber={countdownNumber}
             currentUserCanVote={currentUserCanVote}
             currentUserId={currentUserId}
@@ -867,6 +915,7 @@ export default function GameRoomPage() {
             onRevealCards={handleRevealCards}
             onSaveEstimate={handleSaveEstimate}
             onSetSpectatorMode={setSpectatorMode}
+            onSkipIssue={handleSkipIssue}
           />
         </section>
 

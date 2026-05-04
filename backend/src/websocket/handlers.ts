@@ -13,6 +13,7 @@ import {
   LeaveGamePayload,
   SubmitVotePayload,
   RevealCardsPayload,
+  SkipIssuePayload,
   StartNewRoundPayload,
   UpdateGameSettingsPayload,
   StartTimerPayload,
@@ -34,6 +35,7 @@ import {
   haveAllPlayersVoted,
   calculateVotingResults,
   clearCurrentRound,
+  skipVotingRound,
   setPlayerSpectatorMode,
   setRoomFacilitator,
   startTimer,
@@ -51,6 +53,7 @@ import {
   updateIssue as updateIssueService,
   deleteIssue as deleteIssueService,
   startIssueVotingRound,
+  skipIssueVotingRound,
   completeIssueVotingRound,
 } from "../services/issueService";
 import { logger } from "../utils/logger";
@@ -325,6 +328,49 @@ export const registerHandlers = (io: SocketIOServer) => {
         }
       },
     );
+
+    /**
+     * SKIP_ISSUE - Skip the active issue before voting is complete
+     */
+    authSocket.on(ClientEvents.SKIP_ISSUE, async (payload: SkipIssuePayload) => {
+      try {
+        const { game_id, round_id, issue_id } = payload;
+
+        if (!game_id || !round_id || !issue_id) {
+          throw new Error("Game, round, and issue are required");
+        }
+
+        const gameState = await getRoomState(game_id);
+        if (gameState.game.facilitator_id !== userId) {
+          throw new Error("Only the facilitator can skip issue voting");
+        }
+
+        const skippedRound = skipVotingRound(game_id, round_id, issue_id);
+        const updatedIssue = await skipIssueVotingRound(
+          game_id,
+          skippedRound.round_id,
+          skippedRound.issue_id,
+        );
+
+        io.to(game_id).emit(ServerEvents.ISSUE_UPDATED, {
+          issue: updatedIssue,
+        });
+        io.to(game_id).emit(ServerEvents.ISSUE_SKIPPED, skippedRound);
+        io.to(game_id).emit(
+          ServerEvents.GAME_STATE,
+          await getRoomState(game_id),
+        );
+
+        logger.info(
+          `Issue ${issue_id} skipped in game ${game_id} by facilitator ${userId}`,
+        );
+      } catch (error: any) {
+        logger.error("Error skipping issue:", error);
+        authSocket.emit(ServerEvents.ERROR, {
+          message: error.message || "Failed to skip issue",
+        });
+      }
+    });
 
     /**
      * START_NEW_ROUND - Start a new voting round

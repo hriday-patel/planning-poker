@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CircleDot, Eye, EyeOff, Users } from "lucide-react";
+import { Check, CircleDot, Eye, EyeOff, SkipForward, Users } from "lucide-react";
 import { Button } from "@/components/ui";
 import type { Issue, Player } from "@/types/game.types";
 import { VotingPhase } from "@/types/game.types";
@@ -14,6 +14,7 @@ interface GameTableProps {
   autoReveal: boolean;
   canPickCards: boolean;
   canRevealCards: boolean;
+  canSkipIssue: boolean;
   currentUserCanVote: boolean;
   currentUserId: string | null;
   currentUserIsFacilitator: boolean;
@@ -40,6 +41,7 @@ interface GameTableProps {
   onRevealCards: () => void;
   onSaveEstimate: () => void;
   onSetSpectatorMode: (isSpectator: boolean, targetUserId?: string) => void;
+  onSkipIssue: () => void;
 }
 
 const clamp = (value: number, min: number, max: number) =>
@@ -105,6 +107,7 @@ export default function GameTable({
   autoReveal,
   canPickCards,
   canRevealCards,
+  canSkipIssue,
   countdownNumber,
   currentUserCanVote,
   currentUserId,
@@ -124,6 +127,7 @@ export default function GameTable({
   onRevealCards,
   onSaveEstimate,
   onSetSpectatorMode,
+  onSkipIssue,
   players,
   selectedCard,
   showAverage,
@@ -295,14 +299,29 @@ export default function GameTable({
                 >
                   {statusDescription}
                 </p>
-                {canRevealCards && (
-                  <Button
-                    type="button"
-                    onClick={onRevealCards}
-                    className="mt-4 inline-flex max-w-full justify-center whitespace-nowrap"
-                  >
-                    Reveal cards
-                  </Button>
+                {(canRevealCards || canSkipIssue) && (
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    {canRevealCards && (
+                      <Button
+                        type="button"
+                        onClick={onRevealCards}
+                        className="inline-flex max-w-full justify-center whitespace-nowrap"
+                      >
+                        Reveal cards
+                      </Button>
+                    )}
+                    {canSkipIssue && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={onSkipIssue}
+                        className="inline-flex max-w-full justify-center whitespace-nowrap"
+                      >
+                        <SkipForward className="h-4 w-4" aria-hidden="true" />
+                        Skip issue
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>

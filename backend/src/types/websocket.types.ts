@@ -31,6 +31,12 @@ export interface RevealCardsPayload {
   round_id: string;
 }
 
+export interface SkipIssuePayload {
+  game_id: string;
+  round_id: string;
+  issue_id: string;
+}
+
 export interface StartNewRoundPayload {
   game_id: string;
   issue_id: string | null;
@@ -145,6 +151,11 @@ export interface NewRoundStartedPayload {
   issue_id: string | null;
 }
 
+export interface IssueSkippedPayload {
+  round_id: string;
+  issue_id: string;
+}
+
 export interface GameSettingsUpdatedPayload {
   settings: {
     name?: string;
@@ -243,6 +254,7 @@ export enum ClientEvents {
   LEAVE_GAME = "LEAVE_GAME",
   SUBMIT_VOTE = "SUBMIT_VOTE",
   REVEAL_CARDS = "REVEAL_CARDS",
+  SKIP_ISSUE = "SKIP_ISSUE",
   START_NEW_ROUND = "START_NEW_ROUND",
   UPDATE_GAME_SETTINGS = "UPDATE_GAME_SETTINGS",
   START_TIMER = "START_TIMER",
@@ -260,6 +272,7 @@ export enum ServerEvents {
   PLAYER_LEFT = "PLAYER_LEFT",
   VOTE_SUBMITTED = "VOTE_SUBMITTED",
   CARDS_REVEALED = "CARDS_REVEALED",
+  ISSUE_SKIPPED = "ISSUE_SKIPPED",
   NEW_ROUND_STARTED = "NEW_ROUND_STARTED",
   GAME_SETTINGS_UPDATED = "GAME_SETTINGS_UPDATED",
   TIMER_TICK = "TIMER_TICK",

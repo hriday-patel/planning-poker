@@ -26,6 +26,7 @@ export enum ClientEvents {
   LEAVE_GAME = "LEAVE_GAME",
   SUBMIT_VOTE = "SUBMIT_VOTE",
   REVEAL_CARDS = "REVEAL_CARDS",
+  SKIP_ISSUE = "SKIP_ISSUE",
   START_NEW_ROUND = "START_NEW_ROUND",
   UPDATE_GAME_SETTINGS = "UPDATE_GAME_SETTINGS",
   START_TIMER = "START_TIMER",
@@ -44,6 +45,7 @@ export enum ServerEvents {
   PLAYER_LEFT = "PLAYER_LEFT",
   VOTE_SUBMITTED = "VOTE_SUBMITTED",
   CARDS_REVEALED = "CARDS_REVEALED",
+  ISSUE_SKIPPED = "ISSUE_SKIPPED",
   NEW_ROUND_STARTED = "NEW_ROUND_STARTED",
   GAME_SETTINGS_UPDATED = "GAME_SETTINGS_UPDATED",
   TIMER_TICK = "TIMER_TICK",
@@ -142,6 +144,7 @@ interface UseGameSocketOptions {
   onPlayerLeft?: (userId: string) => void;
   onVoteSubmitted?: (userId: string) => void;
   onCardsRevealed?: (results: VotingResults) => void;
+  onIssueSkipped?: (roundId: string, issueId: string) => void;
   onNewRound?: (roundId: string, issueId: string | null) => void;
   onTimerTick?: (remainingSeconds: number) => void;
   onTimerEnded?: () => void;
@@ -156,6 +159,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
     onPlayerLeft,
     onVoteSubmitted,
     onCardsRevealed,
+    onIssueSkipped,
     onNewRound,
     onTimerTick,
     onTimerEnded,
@@ -264,6 +268,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
     onPlayerLeft,
     onVoteSubmitted,
     onCardsRevealed,
+    onIssueSkipped,
     onNewRound,
     onTimerTick,
     onTimerEnded,
@@ -277,6 +282,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
       onPlayerLeft,
       onVoteSubmitted,
       onCardsRevealed,
+      onIssueSkipped,
       onNewRound,
       onTimerTick,
       onTimerEnded,
@@ -455,6 +461,28 @@ export function useGameSocket(options: UseGameSocketOptions) {
         });
         callbacksRef.current.onCardsRevealed?.(normalizedResults);
       });
+
+      socket.on(
+        ServerEvents.ISSUE_SKIPPED,
+        ({ round_id, issue_id }: { round_id: string; issue_id: string }) => {
+          logger.log("Issue skipped:", issue_id);
+          updateGameState((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              current_round: null,
+              players: prev.players.map((player) => ({
+                ...player,
+                has_voted: false,
+                can_vote: !player.is_spectator,
+                is_round_observer: false,
+                observer_reason: null,
+              })),
+            };
+          });
+          callbacksRef.current.onIssueSkipped?.(round_id, issue_id);
+        },
+      );
 
       socket.on(
         ServerEvents.NEW_ROUND_STARTED,
@@ -639,6 +667,18 @@ export function useGameSocket(options: UseGameSocketOptions) {
     });
   }, [socket, gameState, gameId]);
 
+  const skipIssue = useCallback(() => {
+    if (!socket || !gameState?.current_round?.issue_id) {
+      console.error("Cannot skip issue: socket or active issue not ready");
+      return;
+    }
+    socket.emit(ClientEvents.SKIP_ISSUE, {
+      game_id: gameId,
+      round_id: gameState.current_round.id,
+      issue_id: gameState.current_round.issue_id,
+    });
+  }, [socket, gameState, gameId]);
+
   const startNewRound = useCallback(
     (issueId?: string) => {
       if (!socket) {
@@ -814,6 +854,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
     // Actions
     submitVote,
     revealCards,
+    skipIssue,
     startNewRound,
     updateGameSettings,
     startTimer,

@@ -341,6 +341,48 @@ export const haveAllPlayersVoted = (gameId: string): boolean => {
 };
 
 /**
+ * Skip the current voting round and clear all in-memory votes.
+ */
+export const skipVotingRound = (
+  gameId: string,
+  roundId: string,
+  issueId: string,
+): { round_id: string; issue_id: string } => {
+  const room = rooms.get(gameId);
+  if (!room || !room.current_round || !room.current_round.issue_id) {
+    throw new Error("Start voting an issue before skipping");
+  }
+
+  if (room.current_round.id !== roundId) {
+    throw new Error("This voting round is no longer active");
+  }
+
+  if (room.current_round.issue_id !== issueId) {
+    throw new Error("Only the ongoing issue can be skipped");
+  }
+
+  if (room.current_round.is_revealed) {
+    throw new Error("Cannot skip after cards have been revealed");
+  }
+
+  if (haveAllPlayersVoted(gameId)) {
+    throw new Error("Cannot skip after all eligible players have voted");
+  }
+
+  const skippedRound = {
+    round_id: room.current_round.id,
+    issue_id: room.current_round.issue_id,
+  };
+
+  clearCurrentRound(gameId);
+  logger.info(
+    `Voting round ${roundId} skipped for issue ${issueId} in room ${gameId}`,
+  );
+
+  return skippedRound;
+};
+
+/**
  * Calculate voting results
  */
 export const calculateVotingResults = (gameId: string) => {
