@@ -8,6 +8,7 @@ import { Router, Request, Response } from "express";
 import multer from "multer";
 import { parse } from "csv-parse/sync";
 import { AuthenticatedRequest } from "../types/auth.types";
+import { ServerEvents } from "../types/websocket.types";
 import { authenticate } from "../middleware/auth";
 import { uploadRateLimiter } from "../middleware/rateLimiter";
 import {
@@ -378,6 +379,13 @@ router.post(
         authReq.userId,
         issueTitles,
       );
+
+      const socketServer = req.app.get("io");
+      if (socketServer) {
+        importedIssues.forEach((issue) => {
+          socketServer.to(gameId).emit(ServerEvents.ISSUE_ADDED, { issue });
+        });
+      }
 
       res.status(201).json({
         success: true,

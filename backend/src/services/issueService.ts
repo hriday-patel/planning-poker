@@ -24,14 +24,7 @@ export const getGameIssues = async (gameId: string): Promise<IssueRecord[]> => {
     const result = await db.query(
       `SELECT * FROM issues 
        WHERE game_id = $1 
-       ORDER BY 
-         CASE status 
-           WHEN 'voting' THEN 1 
-           WHEN 'pending' THEN 2 
-           WHEN 'voted' THEN 3 
-         END,
-         display_order ASC,
-         created_at ASC`,
+       ORDER BY display_order ASC, created_at ASC`,
       [gameId],
     );
 

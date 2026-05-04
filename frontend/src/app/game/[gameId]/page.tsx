@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { LogOut, TimerReset } from "lucide-react";
+import { LogOut, Pencil, TimerReset } from "lucide-react";
 import {
   GamePermission,
   GameState,
@@ -19,8 +19,6 @@ import GuestModeModal from "@/components/GuestModeModal";
 import GameTable from "@/components/game/GameTable";
 import GameTopBar from "@/components/game/GameTopBar";
 import IssuesPanel from "@/components/game/IssuesPanel";
-import RoundSidePanel from "@/components/game/RoundSidePanel";
-import VotingDeck from "@/components/game/VotingDeck";
 import { apiFetch } from "@/lib/api";
 import {
   Alert,
@@ -31,6 +29,7 @@ import {
   ModalShell,
   PageShell,
   Select,
+  Textarea,
 } from "@/components/ui";
 
 export default function GameRoomPage() {
@@ -68,9 +67,14 @@ export default function GameRoomPage() {
   const [timeIssuesEnabled, setTimeIssuesEnabled] = useState(false);
   const [timerAlert, setTimerAlert] = useState(false);
   const [newIssueTitle, setNewIssueTitle] = useState("");
+  const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
+  const [editIssueTitle, setEditIssueTitle] = useState("");
+  const [editIssueError, setEditIssueError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [isImportingIssues, setIsImportingIssues] = useState(false);
   const [customEstimate, setCustomEstimate] = useState("");
   const [estimateStatus, setEstimateStatus] = useState<string | null>(null);
+  const lastRevealedRoundKeyRef = useRef<string | null>(null);
   const [selectedLeaveFacilitator, setSelectedLeaveFacilitator] = useState("");
   const [leaveError, setLeaveError] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
@@ -115,6 +119,8 @@ export default function GameRoomPage() {
     stopTimer,
     addIssue,
     updateIssue,
+    deleteIssue,
+    mergeImportedIssues,
     setSpectatorMode,
     leaveGame,
   } = useGameSocket({
@@ -261,16 +267,14 @@ export default function GameRoomPage() {
     !gameState.currentUser?.is_round_observer &&
     gameState.currentUser?.can_vote !== false;
   const currentUserCanReveal =
-    !gameState.currentUser?.is_spectator &&
-    (Boolean(gameState.currentUser?.is_facilitator) ||
-      gameState.game?.who_can_reveal === GamePermission.ALL_PLAYERS);
+    Boolean(gameState.currentUser?.is_facilitator) ||
+    gameState.game?.who_can_reveal === GamePermission.ALL_PLAYERS;
   const currentUserIsFacilitator = Boolean(
     gameState.currentUser?.is_facilitator,
   );
   const canManageIssues =
-    !gameState.currentUser?.is_spectator &&
-    (currentUserIsFacilitator ||
-      gameState.game?.who_can_manage_issues === GamePermission.ALL_PLAYERS);
+    currentUserIsFacilitator ||
+    gameState.game?.who_can_manage_issues === GamePermission.ALL_PLAYERS;
   const currentUserCanToggleSpectator =
     currentUserIsFacilitator ||
     gameState.game?.who_can_toggle_spectator === GamePermission.ALL_PLAYERS;
@@ -280,24 +284,27 @@ export default function GameRoomPage() {
     Boolean(activeRound?.issue_id) &&
     !activeRound?.is_revealed;
   const canRevealCards =
-    canPickCards &&
+    isConnected &&
+    Boolean(activeRound?.issue_id) &&
+    !activeRound?.is_revealed &&
     allPlayersVoted &&
     currentUserCanReveal &&
     !gameState.game?.auto_reveal;
   const displayedEstimate =
     activeIssue?.final_estimate || votingResults?.final_estimate || null;
-  const currentVote = votingResults?.votes.find(
-    (vote) => vote.user_id === currentUserId,
-  );
   const timerRemaining = wsGameState?.timer?.remaining_seconds ?? null;
   const timerRunning = wsGameState?.timer?.is_running ?? false;
   const otherPlayers = useMemo(
     () => gameState.players.filter((player) => player.id !== currentUserId),
     [currentUserId, gameState.players],
   );
+  const pendingIssues = useMemo(
+    () => gameState.issues.filter((issue) => issue.status === "pending"),
+    [gameState.issues],
+  );
 
   const nextPendingIssue = useMemo(
-    () => gameState.issues.find((issue) => issue.status !== "voted") || null,
+    () => gameState.issues.find((issue) => issue.status === "pending") || null,
     [gameState.issues],
   );
 
@@ -306,22 +313,32 @@ export default function GameRoomPage() {
       total: gameState.issues.length,
       voted: gameState.issues.filter((issue) => issue.status === "voted")
         .length,
-      pending: gameState.issues.filter((issue) => issue.status !== "voted")
+      pending: gameState.issues.filter((issue) => issue.status === "pending")
         .length,
     }),
     [gameState.issues],
   );
 
   useEffect(() => {
-    if (!votingResults) {
+    const revealedRoundKey = votingResults
+      ? activeRound?.id || activeIssue?.id || "revealed"
+      : null;
+
+    if (!revealedRoundKey) {
+      lastRevealedRoundKeyRef.current = null;
       setCustomEstimate("");
       setEstimateStatus(null);
       return;
     }
 
+    if (lastRevealedRoundKeyRef.current === revealedRoundKey) {
+      return;
+    }
+
+    lastRevealedRoundKeyRef.current = revealedRoundKey;
     setCustomEstimate(displayedEstimate || "");
     setEstimateStatus(null);
-  }, [votingResults, displayedEstimate]);
+  }, [activeIssue?.id, activeRound?.id, displayedEstimate, votingResults]);
 
   const handleAddIssue = (event: React.FormEvent) => {
     event.preventDefault();
@@ -353,6 +370,14 @@ export default function GameRoomPage() {
       return;
     }
 
+    if (showAddIssueForm && newIssueTitle.trim()) {
+      setShowIssuesPanel(true);
+      setActionError(
+        "Complete adding this issue or cancel it before voting another issue.",
+      );
+      return;
+    }
+
     if (activeRound && !activeRound.is_revealed) {
       setActionError("Reveal the current issue before starting another vote");
       return;
@@ -364,13 +389,150 @@ export default function GameRoomPage() {
     }
 
     if (!canManageIssues) {
-      setActionError("Only the facilitator can start issue voting");
+      setActionError("Issue voting is facilitator-only in this game");
       return;
     }
 
     setVotingResults(null);
     setActionError(null);
     startNewRound(issue.id);
+  };
+
+  const handleDeletePendingIssue = (issue: Issue) => {
+    if (!isConnected) {
+      setActionError("Connect to the game before removing an issue");
+      return;
+    }
+
+    if (!canManageIssues) {
+      setActionError("Issue management is facilitator-only in this game");
+      return;
+    }
+
+    if (issue.status !== "pending") {
+      setActionError("Only pending issues can be removed");
+      return;
+    }
+
+    deleteIssue(issue.id);
+    setActionError(null);
+  };
+
+  const handleOpenEditIssue = (issue: Issue) => {
+    if (!canManageIssues) {
+      setShowIssuesPanel(true);
+      setActionError("Issue management is facilitator-only in this game");
+      return;
+    }
+
+    if (issue.status !== "pending") {
+      setActionError("Only pending issues can be edited");
+      return;
+    }
+
+    setEditingIssue(issue);
+    setEditIssueTitle(issue.title);
+    setEditIssueError(null);
+    setActionError(null);
+  };
+
+  const handleCloseEditIssue = () => {
+    setEditingIssue(null);
+    setEditIssueTitle("");
+    setEditIssueError(null);
+  };
+
+  const handleSaveEditedIssue = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!editingIssue) {
+      return;
+    }
+
+    const title = editIssueTitle.trim();
+    if (!title) {
+      setEditIssueError("Issue title is required");
+      return;
+    }
+
+    if (!isConnected) {
+      setEditIssueError("Connect to the game before editing an issue");
+      return;
+    }
+
+    if (!canManageIssues) {
+      setEditIssueError("Issue management is facilitator-only in this game");
+      return;
+    }
+
+    if (editingIssue.status !== "pending") {
+      setEditIssueError("Only pending issues can be edited");
+      return;
+    }
+
+    updateIssue({
+      id: editingIssue.id,
+      title,
+    });
+
+    handleCloseEditIssue();
+    setActionError(null);
+  };
+
+  const handleRemovePendingIssues = () => {
+    if (!isConnected) {
+      setActionError("Connect to the game before removing pending issues");
+      return;
+    }
+
+    if (!canManageIssues) {
+      setActionError("Issue management is facilitator-only in this game");
+      return;
+    }
+
+    if (pendingIssues.length === 0) {
+      return;
+    }
+
+    pendingIssues.forEach((issue) => deleteIssue(issue.id));
+    setActionError(null);
+  };
+
+  const handleImportIssues = async (file: File) => {
+    if (!canManageIssues) {
+      setActionError("Issue import is facilitator-only in this game");
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      setActionError("Choose a CSV file to import issues");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("source", "csv");
+    formData.append("file", file);
+
+    setIsImportingIssues(true);
+    setActionError(null);
+
+    try {
+      const response = await apiFetch(`/api/v1/games/${gameId}/issues/import`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to import issues");
+      }
+
+      mergeImportedIssues(data?.issues || []);
+    } catch (error: any) {
+      setActionError(error.message || "Failed to import issues");
+    } finally {
+      setIsImportingIssues(false);
+    }
   };
 
   const handleCardSelect = (value: string) => {
@@ -412,10 +574,39 @@ export default function GameRoomPage() {
   };
 
   const handlePickNextIssue = () => {
-    setShowIssuesPanel(true);
-    if (nextPendingIssue) {
-      setActionError(null);
+    if (!isConnected) {
+      setActionError("Connect to the game before starting a vote");
+      return;
     }
+
+    if (showAddIssueForm && newIssueTitle.trim()) {
+      setShowIssuesPanel(true);
+      setActionError(
+        "Complete adding this issue or cancel it before voting another issue.",
+      );
+      return;
+    }
+
+    if (activeRound && !activeRound.is_revealed) {
+      setActionError("Reveal the current issue before starting another vote");
+      return;
+    }
+
+    if (!canManageIssues) {
+      setShowIssuesPanel(true);
+      setActionError("Issue voting is facilitator-only in this game");
+      return;
+    }
+
+    if (!nextPendingIssue) {
+      setShowIssuesPanel(true);
+      setActionError("No pending issues to vote");
+      return;
+    }
+
+    setVotingResults(null);
+    setActionError(null);
+    startNewRound(nextPendingIssue.id);
   };
 
   const handleSaveEstimate = () => {
@@ -522,94 +713,79 @@ export default function GameRoomPage() {
   }
 
   return (
-    <PageShell className="transition-colors">
-      <GameTopBar
-        gameName={gameState.game.name}
-        isConnected={isConnected}
-        canToggleSpectator={currentUserCanToggleSpectator}
-        eligiblePlayerCount={eligiblePlayers.length}
-        isSpectator={Boolean(gameState.currentUser?.is_spectator)}
-        showGameDropdown={showGameDropdown}
-        showIssuesPanel={showIssuesPanel}
-        timerAlert={timerAlert}
-        timerRemaining={timerRemaining}
-        timerRunning={timerRunning}
-        onOpenHistory={() => {
-          setShowGameDropdown(false);
-          setShowHistoryModal(true);
-        }}
-        onOpenInvite={() => setShowInviteModal(true)}
-        onOpenLeave={openLeaveModal}
-        onOpenSettings={() => {
-          setShowGameDropdown(false);
-          setShowSettingsModal(true);
-        }}
-        onOpenTimer={() => setShowTimerModal(true)}
-        onToggleSpectator={handleToggleSpectator}
-        onToggleGameDropdown={() => setShowGameDropdown((prev) => !prev)}
-        onToggleIssuesPanel={() => setShowIssuesPanel((prev) => !prev)}
-      />
+    <PageShell className="flex h-screen flex-col overflow-hidden transition-colors">
+      <div className="shrink-0">
+        <GameTopBar
+          gameName={gameState.game.name}
+          isConnected={isConnected}
+          canToggleSpectator={currentUserCanToggleSpectator}
+          eligiblePlayerCount={eligiblePlayers.length}
+          isSpectator={Boolean(gameState.currentUser?.is_spectator)}
+          showGameDropdown={showGameDropdown}
+          showIssuesPanel={showIssuesPanel}
+          timerAlert={timerAlert}
+          timerRemaining={timerRemaining}
+          timerRunning={timerRunning}
+          onOpenHistory={() => {
+            setShowGameDropdown(false);
+            setShowHistoryModal(true);
+          }}
+          onOpenInvite={() => setShowInviteModal(true)}
+          onOpenLeave={openLeaveModal}
+          onOpenSettings={() => {
+            setShowGameDropdown(false);
+            setShowSettingsModal(true);
+          }}
+          onOpenTimer={() => setShowTimerModal(true)}
+          onToggleSpectator={handleToggleSpectator}
+          onToggleGameDropdown={() => setShowGameDropdown((prev) => !prev)}
+          onToggleIssuesPanel={() => setShowIssuesPanel((prev) => !prev)}
+        />
+      </div>
 
       <main
-        className={`grid min-h-[calc(100vh-4rem)] ${
-          showIssuesPanel ? "lg:grid-cols-[minmax(0,1fr)_400px]" : "grid-cols-1"
+        className={`grid min-h-0 flex-1 overflow-hidden ${
+          showIssuesPanel
+            ? "lg:grid-cols-[minmax(0,1fr)_minmax(340px,380px)]"
+            : "grid-cols-1"
         }`}
       >
-        <section className="flex min-w-0 flex-col">
-          <div className="grid flex-1 gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_240px] lg:p-5">
-            <div className="min-w-0 space-y-4">
-              <GameTable
-                activeIssue={activeIssue}
-                allPlayersVoted={allPlayersVoted}
-                autoReveal={gameState.game.auto_reveal}
-                canRevealCards={canRevealCards}
-                countdownNumber={countdownNumber}
-                currentUserCanVote={currentUserCanVote}
-                currentUserId={currentUserId}
-                currentUserIsFacilitator={currentUserIsFacilitator}
-                customEstimate={customEstimate}
-                displayedEstimate={displayedEstimate}
-                eligiblePlayerCount={eligiblePlayers.length}
-                estimateStatus={estimateStatus}
-                isConnected={isConnected}
-                issueTotal={issueCounts.total}
-                players={gameState.players}
-                selectedCard={gameState.selectedCard}
-                showAverage={gameState.game.show_average}
-                showCountdown={showCountdown}
-                votedCount={votedCount}
-                votingPhase={gameState.votingPhase}
-                votingResults={votingResults}
-                onCustomEstimateChange={(value) => {
-                  setCustomEstimate(value);
-                  setEstimateStatus(null);
-                }}
-                onPickNextIssue={handlePickNextIssue}
-                onRevealCards={handleRevealCards}
-                onSaveEstimate={handleSaveEstimate}
-              />
-
-              {gameState.votingPhase !== VotingPhase.REVEALED && (
-                <VotingDeck
-                  canPickCards={canPickCards}
-                  deckName={gameState.game.deck.name}
-                  deckValues={gameState.game.deck.values}
-                  selectedCard={gameState.selectedCard}
-                  onCardSelect={handleCardSelect}
-                />
-              )}
-            </div>
-
-            <RoundSidePanel
-              currentVote={currentVote}
-              selectedCard={gameState.selectedCard}
-              timerAlert={timerAlert}
-              timerRemaining={timerRemaining}
-              timerRunning={timerRunning}
-              votingResults={votingResults}
-              onOpenTimer={() => setShowTimerModal(true)}
-            />
-          </div>
+        <section className="flex h-full min-h-0 min-w-0 flex-col">
+          <GameTable
+            activeIssue={activeIssue}
+            allPlayersVoted={allPlayersVoted}
+            autoReveal={gameState.game.auto_reveal}
+            canPickCards={canPickCards}
+            canRevealCards={canRevealCards}
+            countdownNumber={countdownNumber}
+            currentUserCanVote={currentUserCanVote}
+            currentUserId={currentUserId}
+            currentUserIsFacilitator={currentUserIsFacilitator}
+            customEstimate={customEstimate}
+            deckName={gameState.game.deck.name}
+            deckValues={gameState.game.deck.values}
+            displayedEstimate={displayedEstimate}
+            eligiblePlayerCount={eligiblePlayers.length}
+            estimateStatus={estimateStatus}
+            isConnected={isConnected}
+            isIssuesPanelOpen={showIssuesPanel}
+            issueTotal={issueCounts.total}
+            players={gameState.players}
+            selectedCard={gameState.selectedCard}
+            showAverage={gameState.game.show_average}
+            showCountdown={showCountdown}
+            votedCount={votedCount}
+            votingPhase={gameState.votingPhase}
+            votingResults={votingResults}
+            onCardSelect={handleCardSelect}
+            onCustomEstimateChange={(value: string) => {
+              setCustomEstimate(value);
+              setEstimateStatus(null);
+            }}
+            onPickNextIssue={handlePickNextIssue}
+            onRevealCards={handleRevealCards}
+            onSaveEstimate={handleSaveEstimate}
+          />
         </section>
 
         {showIssuesPanel && (
@@ -617,11 +793,17 @@ export default function GameRoomPage() {
             actionError={actionError}
             activeIssueId={activeIssue?.id}
             canManageIssues={canManageIssues}
+            isImportingIssues={isImportingIssues}
             isConnected={isConnected}
             isRoundInProgress={Boolean(activeRound && !activeRound.is_revealed)}
             issueCounts={issueCounts}
             issues={gameState.issues}
             newIssueTitle={newIssueTitle}
+            revealedIssueId={
+              votingResults && gameState.votingPhase === VotingPhase.REVEALED
+                ? activeIssue?.id
+                : null
+            }
             showAddIssueForm={showAddIssueForm}
             onAddIssueSubmit={handleAddIssue}
             onCancelAddIssue={() => {
@@ -629,11 +811,15 @@ export default function GameRoomPage() {
               setNewIssueTitle("");
             }}
             onClose={() => setShowIssuesPanel(false)}
+            onDeleteIssue={handleDeletePendingIssue}
+            onEditIssue={handleOpenEditIssue}
+            onImportCsv={handleImportIssues}
             onNewIssueTitleChange={setNewIssueTitle}
+            onRemovePendingIssues={handleRemovePendingIssues}
             onToggleAddIssueForm={() => {
               if (!canManageIssues) {
                 setActionError(
-                  "Only the facilitator can manage issues in this game",
+                  "Issue management is facilitator-only in this game",
                 );
                 return;
               }
@@ -663,6 +849,60 @@ export default function GameRoomPage() {
         onTransferFacilitator={transferFacilitator}
         onSetSpectatorMode={setSpectatorMode}
       />
+
+      <ModalShell
+        isOpen={editingIssue !== null}
+        onClose={handleCloseEditIssue}
+        maxWidthClassName="max-w-lg"
+      >
+        <ModalHeader
+          icon={Pencil}
+          title="Edit issue"
+          subtitle="Pending issues can be updated before voting starts"
+          onClose={handleCloseEditIssue}
+        />
+        <form
+          id="edit-issue-form"
+          onSubmit={handleSaveEditedIssue}
+          className="space-y-3 p-5"
+        >
+          <label htmlFor="edit-issue-title" className="sr-only">
+            Issue title
+          </label>
+          <Textarea
+            id="edit-issue-title"
+            value={editIssueTitle}
+            onChange={(event) => {
+              setEditIssueTitle(event.target.value);
+              setEditIssueError(null);
+            }}
+            maxLength={500}
+            rows={4}
+            autoFocus
+            placeholder="Write an issue or user story"
+            className="w-full resize-none rounded-lg px-3 py-2 text-sm"
+          />
+          {editIssueError && <Alert variant="danger">{editIssueError}</Alert>}
+        </form>
+        <ModalFooter layout="split">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleCloseEditIssue}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="edit-issue-form"
+            disabled={
+              !editIssueTitle.trim() || !isConnected || !canManageIssues
+            }
+          >
+            Save changes
+          </Button>
+        </ModalFooter>
+      </ModalShell>
 
       <ModalShell
         isOpen={showLeaveModal}

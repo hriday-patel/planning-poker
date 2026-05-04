@@ -739,6 +739,30 @@ export function useGameSocket(options: UseGameSocketOptions) {
     [socket, gameId],
   );
 
+  const mergeImportedIssues = useCallback(
+    (issues: any[]) => {
+      if (issues.length === 0) return;
+
+      updateGameState((prev) => {
+        if (!prev) return prev;
+
+        const issueMap = new Map(
+          (prev.issues || []).map((issue: any) => [issue.id, issue]),
+        );
+        issues.forEach((issue) => issueMap.set(issue.id, issue));
+
+        return {
+          ...prev,
+          issues: Array.from(issueMap.values()).sort(
+            (first: any, second: any) =>
+              (first.display_order ?? 0) - (second.display_order ?? 0),
+          ),
+        };
+      });
+    },
+    [updateGameState],
+  );
+
   const transferFacilitator = useCallback(
     (newFacilitatorId: string) => {
       if (!socket) {
@@ -798,6 +822,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
     addIssue,
     updateIssue,
     deleteIssue,
+    mergeImportedIssues,
     transferFacilitator,
     setSpectatorMode,
     leaveGame,

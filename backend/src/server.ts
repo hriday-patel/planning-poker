@@ -171,6 +171,8 @@ const io = new SocketIOServer(server, {
   },
 });
 
+app.set("io", io);
+
 // Middleware
 app.use(
   helmet({

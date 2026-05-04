@@ -124,6 +124,7 @@ export default function InviteModal({ gameId, onClose }: InviteModalProps) {
                       copied
                         ? {
                             backgroundColor: "var(--success)",
+                            backgroundImage: "none",
                             color: "var(--text-on-accent)",
                           }
                         : undefined
