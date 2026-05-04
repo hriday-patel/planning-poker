@@ -785,6 +785,7 @@ export default function GameRoomPage() {
             onPickNextIssue={handlePickNextIssue}
             onRevealCards={handleRevealCards}
             onSaveEstimate={handleSaveEstimate}
+            onSetSpectatorMode={setSpectatorMode}
           />
         </section>
 
@@ -847,7 +848,6 @@ export default function GameRoomPage() {
         currentUserId={gameState.currentUser?.id || null}
         onUpdateSettings={updateGameSettings}
         onTransferFacilitator={transferFacilitator}
-        onSetSpectatorMode={setSpectatorMode}
       />
 
       <ModalShell

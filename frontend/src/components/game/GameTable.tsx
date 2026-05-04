@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, CircleDot, Users } from "lucide-react";
+import { Check, CircleDot, Eye, EyeOff, Users } from "lucide-react";
 import { Button } from "@/components/ui";
 import type { Issue, Player } from "@/types/game.types";
 import { VotingPhase } from "@/types/game.types";
@@ -39,20 +39,65 @@ interface GameTableProps {
   onPickNextIssue: () => void;
   onRevealCards: () => void;
   onSaveEstimate: () => void;
+  onSetSpectatorMode: (isSpectator: boolean, targetUserId?: string) => void;
 }
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
 const getPlayerPosition = (index: number, total: number) => {
-  if (total <= 1) return { left: 50, top: 82 };
+  if (total <= 1) return { left: 50, top: 80 };
 
   const angle = -Math.PI / 2 + (index / total) * Math.PI * 2;
   return {
-    left: clamp(50 + 43 * Math.cos(angle), 9, 91),
-    top: clamp(50 + 38 * Math.sin(angle), 13, 87),
+    left: clamp(50 + 34 * Math.cos(angle), 15, 85),
+    top: clamp(50 + 33 * Math.sin(angle), 16, 84),
   };
 };
+
+function SpectatorToggleButton({
+  isSpectator,
+  onToggle,
+  playerName,
+  placement = "card",
+}: {
+  isSpectator: boolean;
+  onToggle: () => void;
+  playerName: string;
+  placement?: "card" | "row";
+}) {
+  const title = isSpectator
+    ? `Make ${playerName} a voter`
+    : `Make ${playerName} a spectator`;
+  const Icon = isSpectator ? EyeOff : Eye;
+
+  return (
+    <button
+      type="button"
+      aria-label={title}
+      aria-pressed={isSpectator}
+      title={title}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      className={
+        placement === "card"
+          ? "absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full border shadow-theme transition-transform hover:-translate-y-0.5 active:translate-y-0"
+          : "ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full border shadow-sm transition-transform hover:-translate-y-0.5 active:translate-y-0"
+      }
+      style={{
+        backgroundColor: isSpectator
+          ? "var(--surface-accent)"
+          : "var(--surface-primary)",
+        borderColor: isSpectator ? "var(--primary)" : "var(--border-color)",
+        color: isSpectator ? "var(--primary)" : "var(--text-secondary)",
+      }}
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+    </button>
+  );
+}
 
 export default function GameTable({
   activeIssue,
@@ -78,6 +123,7 @@ export default function GameTable({
   onPickNextIssue,
   onRevealCards,
   onSaveEstimate,
+  onSetSpectatorMode,
   players,
   selectedCard,
   showAverage,
@@ -181,7 +227,7 @@ export default function GameTable({
       <div className="flex min-h-0 flex-1 flex-col gap-3 px-5 pb-5 sm:px-8 sm:pb-6">
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <div
-            className="absolute left-1/2 top-1/2 h-[34%] max-h-60 min-h-32 w-[min(58%,520px)] -translate-x-1/2 -translate-y-1/2 rounded-4xl border"
+            className="absolute left-1/2 top-1/2 h-[36%] max-h-64 min-h-36 w-[min(58%,520px)] -translate-x-1/2 -translate-y-1/2 rounded-4xl border"
             style={{
               background:
                 "linear-gradient(135deg, color-mix(in srgb, var(--primary) 28%, var(--surface-accent)) 0%, var(--surface-secondary) 100%)",
@@ -278,7 +324,7 @@ export default function GameTable({
                   <div className="flex flex-col items-center gap-2">
                     <div
                       aria-label={`${player.display_name}: ${revealedVote ? `voted ${revealedVote}` : player.has_voted ? "voted" : "waiting"}`}
-                      className="flex h-18 w-13 items-center justify-center rounded-lg border text-lg font-bold shadow-theme transition-transform"
+                      className="relative flex h-18 w-13 items-center justify-center rounded-lg border text-lg font-bold shadow-theme transition-transform"
                       style={{
                         backgroundColor: revealedVote
                           ? "color-mix(in srgb, var(--success) 18%, var(--surface-primary))"
@@ -301,6 +347,15 @@ export default function GameTable({
                         ) : (
                           ""
                         ))}
+                      {currentUserIsFacilitator && (
+                        <SpectatorToggleButton
+                          isSpectator={player.is_spectator}
+                          playerName={player.display_name}
+                          onToggle={() =>
+                            onSetSpectatorMode(!player.is_spectator, player.id)
+                          }
+                        />
+                      )}
                     </div>
                     <div
                       className="flex max-w-32 flex-col items-center px-2 py-1 text-center"
@@ -381,6 +436,16 @@ export default function GameTable({
                       {getPlayerStatus(player)}
                     </p>
                   </div>
+                  {currentUserIsFacilitator && (
+                    <SpectatorToggleButton
+                      isSpectator={player.is_spectator}
+                      placement="row"
+                      playerName={player.display_name}
+                      onToggle={() =>
+                        onSetSpectatorMode(!player.is_spectator, player.id)
+                      }
+                    />
+                  )}
                 </div>
               );
             })}
@@ -389,7 +454,7 @@ export default function GameTable({
 
         {showDeck ? (
           <div
-            className="shrink-0 border-t pt-3"
+            className="min-h-[10rem] shrink-0 border-t pt-3"
             style={{ borderColor: "var(--border-subtle)" }}
           >
             <VotingDeck
@@ -403,7 +468,7 @@ export default function GameTable({
           </div>
         ) : hasRevealedResults ? (
           <div
-            className="shrink-0 border-t pt-3"
+            className="min-h-[10rem] shrink-0 border-t pt-3"
             style={{ borderColor: "var(--border-subtle)" }}
           >
             <VotingResultsPanel

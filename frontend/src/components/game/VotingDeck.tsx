@@ -26,17 +26,17 @@ export default function VotingDeck({
       ? "gap-1.5"
       : "gap-2";
   const cardSizeClass = isDenseDeck
-    ? "h-10 rounded-md text-xs sm:h-11 sm:text-sm"
+    ? "h-12 rounded-md text-sm sm:h-14 sm:text-base"
     : isLargeDeck
-      ? "h-11 rounded-md text-sm sm:h-12 sm:text-base"
+      ? "h-14 rounded-lg text-base sm:h-16 sm:text-lg"
       : embedded
-        ? "h-12 rounded-lg text-base sm:h-14 sm:text-lg"
-        : "h-14 rounded-lg text-lg sm:h-16";
+        ? "h-16 rounded-lg text-lg sm:h-18"
+        : "h-16 rounded-lg text-lg sm:h-18";
 
   return (
     <section
       aria-labelledby="voting-deck-heading"
-      className={embedded ? "" : "rounded-lg border p-4 shadow-theme"}
+      className={embedded ? "h-full" : "rounded-lg border p-4 shadow-theme"}
       style={
         embedded
           ? undefined

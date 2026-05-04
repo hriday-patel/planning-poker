@@ -22,7 +22,6 @@ interface GameSettingsModalProps {
   currentUserId: string | null;
   onUpdateSettings: (settings: any) => void;
   onTransferFacilitator: (newFacilitatorId: string) => void;
-  onSetSpectatorMode: (isSpectator: boolean, targetUserId?: string) => void;
 }
 
 export default function GameSettingsModal({
@@ -33,7 +32,6 @@ export default function GameSettingsModal({
   currentUserId,
   onUpdateSettings,
   onTransferFacilitator,
-  onSetSpectatorMode,
 }: GameSettingsModalProps) {
   const [settings, setSettings] = useState({
     who_can_reveal: "all_players" as GamePermission,
@@ -202,60 +200,6 @@ export default function GameSettingsModal({
             }
           />
         </div>
-
-        {isFacilitator && (
-          <section
-            className="rounded-lg border p-4"
-            style={{
-              backgroundColor: "var(--surface-secondary)",
-              borderColor: "var(--border-subtle)",
-            }}
-          >
-            <div className="mb-3">
-              <h3 className="font-semibold">Player voting roles</h3>
-              <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-                Move players between voter and spectator for this room.
-              </p>
-            </div>
-            <div className="grid gap-2">
-              {players.map((player) => (
-                <div
-                  key={player.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2"
-                  style={{
-                    backgroundColor: "var(--surface-primary)",
-                    borderColor: "var(--border-subtle)",
-                  }}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {player.display_name}
-                      {player.id === game.facilitator_id
-                        ? " (Facilitator)"
-                        : ""}
-                    </p>
-                    <p
-                      className="text-xs"
-                      style={{ color: "var(--text-tertiary)" }}
-                    >
-                      {player.is_spectator ? "Spectator" : "Voter"}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant={player.is_spectator ? "primary" : "secondary"}
-                    size="sm"
-                    onClick={() =>
-                      onSetSpectatorMode(!player.is_spectator, player.id)
-                    }
-                  >
-                    {player.is_spectator ? "Make voter" : "Make spectator"}
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
       </div>
 
       <ModalFooter layout={isFacilitator ? "split" : "single"}>
