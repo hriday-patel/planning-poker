@@ -154,6 +154,10 @@ Key configuration options (see `.env.example` for full list):
 
 - `REDIS_HOST`, `REDIS_PORT`
 
+**Jira Import**
+
+- `JIRA_ALLOWED_HOSTS` controls which Jira hosts can be called by server-side imports. Defaults support Atlassian Cloud and IBM-hosted Jira.
+
 ## 🎮 Features
 
 ### Authentication
@@ -182,7 +186,7 @@ Key configuration options (see `.env.example` for full list):
 ### Issue Management
 
 - Add/edit/delete issues
-- Import from JIRA/Linear (planned)
+- Import Jira sprint issues with preview and duplicate handling
 - Import from CSV
 - Issue status tracking (pending/voting/voted)
 
@@ -349,7 +353,7 @@ Internal use only - Enterprise organization
 
 ### Phase 4: Integrations
 
-- JIRA integration
+- Jira sprint import with manual API token entry
 - Linear integration
 - CSV import/export
 - Analytics

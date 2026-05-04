@@ -1,7 +1,15 @@
 "use client";
 
 import { type ChangeEvent, type FormEvent, useRef } from "react";
-import { FileUp, ListChecks, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  FileUp,
+  Link as LinkIcon,
+  ListChecks,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import type { Issue } from "@/types/game.types";
 import {
   Alert,
@@ -23,6 +31,7 @@ interface IssuesPanelProps {
   canManageIssues: boolean;
   isConnected: boolean;
   isImportingIssues: boolean;
+  isImportingJira: boolean;
   isRoundInProgress: boolean;
   issueCounts: IssueCounts;
   issues: Issue[];
@@ -35,6 +44,7 @@ interface IssuesPanelProps {
   onDeleteIssue: (issue: Issue) => void;
   onEditIssue: (issue: Issue) => void;
   onImportCsv: (file: File) => void;
+  onImportJira: () => void;
   onNewIssueTitleChange: (value: string) => void;
   onRemovePendingIssues: () => void;
   onToggleAddIssueForm: () => void;
@@ -47,6 +57,7 @@ export default function IssuesPanel({
   canManageIssues,
   isConnected,
   isImportingIssues,
+  isImportingJira,
   isRoundInProgress,
   issueCounts,
   issues,
@@ -57,6 +68,7 @@ export default function IssuesPanel({
   onDeleteIssue,
   onEditIssue,
   onImportCsv,
+  onImportJira,
   onNewIssueTitleChange,
   onRemovePendingIssues,
   onToggleAddIssueForm,
@@ -153,11 +165,22 @@ export default function IssuesPanel({
             variant="secondary"
             size="sm"
             onClick={() => fileInputRef.current?.click()}
-            disabled={actionsDisabled || isImportingIssues}
+            disabled={actionsDisabled || isImportingIssues || isImportingJira}
             isLoading={isImportingIssues}
           >
             <FileUp className="h-4 w-4" aria-hidden="true" />
             Import CSV
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={onImportJira}
+            disabled={actionsDisabled || isImportingIssues || isImportingJira}
+            isLoading={isImportingJira}
+          >
+            <LinkIcon className="h-4 w-4" aria-hidden="true" />
+            Import Jira
           </Button>
           <Button
             type="button"
@@ -255,9 +278,29 @@ export default function IssuesPanel({
                     }}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <h3 className="min-w-0 text-sm font-semibold leading-5">
-                        {issue.title}
-                      </h3>
+                      <div className="min-w-0 flex-1">
+                        {issue.external_key && (
+                          <div className="mb-2 flex flex-wrap items-center gap-2">
+                            {issue.external_url ? (
+                              <a
+                                href={issue.external_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex"
+                              >
+                                <Badge variant="info">
+                                  {issue.external_key}
+                                </Badge>
+                              </a>
+                            ) : (
+                              <Badge variant="info">{issue.external_key}</Badge>
+                            )}
+                          </div>
+                        )}
+                        <h3 className="min-w-0 text-sm font-semibold leading-5">
+                          {issue.title}
+                        </h3>
+                      </div>
                       <div className="flex shrink-0 items-center gap-2">
                         <Badge
                           variant={

@@ -7,6 +7,11 @@ import {
   GamePermission,
   GameState,
   Issue,
+  JiraDuplicateAction,
+  JiraImportCandidate,
+  JiraImportConfirmResponse,
+  JiraImportPreviewResponse,
+  JiraImportRequest,
   VotingPhase,
   Player,
 } from "@/types/game.types";
@@ -16,6 +21,7 @@ import InviteModal from "@/components/InviteModal";
 import VotingHistory from "@/components/VotingHistory";
 import GameSettingsModal from "@/components/GameSettingsModal";
 import GuestModeModal from "@/components/GuestModeModal";
+import JiraImportModal from "@/components/JiraImportModal";
 import GameTable from "@/components/game/GameTable";
 import GameTopBar from "@/components/game/GameTopBar";
 import IssuesPanel from "@/components/game/IssuesPanel";
@@ -57,6 +63,7 @@ export default function GameRoomPage() {
   const [showAddIssueForm, setShowAddIssueForm] = useState(false);
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showJiraImportModal, setShowJiraImportModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showGameDropdown, setShowGameDropdown] = useState(false);
   const [votingResults, setVotingResults] = useState<VotingResults | null>(
@@ -72,6 +79,7 @@ export default function GameRoomPage() {
   const [editIssueError, setEditIssueError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isImportingIssues, setIsImportingIssues] = useState(false);
+  const [isImportingJira, setIsImportingJira] = useState(false);
   const [customEstimate, setCustomEstimate] = useState("");
   const [estimateStatus, setEstimateStatus] = useState<string | null>(null);
   const lastRevealedRoundKeyRef = useRef<string | null>(null);
@@ -535,6 +543,79 @@ export default function GameRoomPage() {
     }
   };
 
+  const handlePreviewJiraIssues = async (
+    request: JiraImportRequest,
+  ): Promise<JiraImportPreviewResponse> => {
+    if (!canManageIssues) {
+      throw new Error("Issue import is facilitator-only in this game");
+    }
+
+    setIsImportingJira(true);
+    setActionError(null);
+
+    try {
+      const response = await apiFetch(
+        `/api/v1/games/${gameId}/issues/import/jira/preview`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(request),
+        },
+      );
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to preview Jira sprint");
+      }
+
+      return {
+        candidates: data?.candidates || [],
+        count: data?.count || 0,
+        duplicateCount: data?.duplicateCount || 0,
+      };
+    } finally {
+      setIsImportingJira(false);
+    }
+  };
+
+  const handleConfirmJiraImport = async (
+    issues: JiraImportCandidate[],
+    duplicateAction: JiraDuplicateAction,
+  ): Promise<void> => {
+    if (!canManageIssues) {
+      throw new Error("Issue import is facilitator-only in this game");
+    }
+
+    setIsImportingJira(true);
+    setActionError(null);
+
+    try {
+      const response = await apiFetch(
+        `/api/v1/games/${gameId}/issues/import/jira/confirm`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ issues, duplicateAction }),
+        },
+      );
+      const data = (await response.json().catch(() => null)) as
+        | (JiraImportConfirmResponse & { error?: string })
+        | null;
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to import Jira issues");
+      }
+
+      mergeImportedIssues(data?.issues || []);
+    } finally {
+      setIsImportingJira(false);
+    }
+  };
+
   const handleCardSelect = (value: string) => {
     if (!canPickCards) {
       setActionError(
@@ -795,6 +876,7 @@ export default function GameRoomPage() {
             activeIssueId={activeIssue?.id}
             canManageIssues={canManageIssues}
             isImportingIssues={isImportingIssues}
+            isImportingJira={isImportingJira}
             isConnected={isConnected}
             isRoundInProgress={Boolean(activeRound && !activeRound.is_revealed)}
             issueCounts={issueCounts}
@@ -815,6 +897,15 @@ export default function GameRoomPage() {
             onDeleteIssue={handleDeletePendingIssue}
             onEditIssue={handleOpenEditIssue}
             onImportCsv={handleImportIssues}
+            onImportJira={() => {
+              if (!canManageIssues) {
+                setActionError("Issue import is facilitator-only in this game");
+                return;
+              }
+
+              setShowJiraImportModal(true);
+              setActionError(null);
+            }}
             onNewIssueTitleChange={setNewIssueTitle}
             onRemovePendingIssues={handleRemovePendingIssues}
             onToggleAddIssueForm={() => {
@@ -848,6 +939,14 @@ export default function GameRoomPage() {
         currentUserId={gameState.currentUser?.id || null}
         onUpdateSettings={updateGameSettings}
         onTransferFacilitator={transferFacilitator}
+      />
+
+      <JiraImportModal
+        isOpen={showJiraImportModal}
+        isLoading={isImportingJira}
+        onClose={() => setShowJiraImportModal(false)}
+        onPreview={handlePreviewJiraIssues}
+        onConfirm={handleConfirmJiraImport}
       />
 
       <ModalShell

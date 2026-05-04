@@ -9,6 +9,7 @@ import { db } from "../config/database";
 import {
   IssueRecord,
   CreateIssuePayload,
+  ImportIssueInput,
   UpdateIssuePayload,
   IssueStatus,
   GAME_VALIDATION,
@@ -277,6 +278,22 @@ export const importIssues = async (
   gameId: string,
   userId: string,
   titles: string[],
+  source = "manual",
+): Promise<IssueRecord[]> => {
+  return importIssueRecords(
+    gameId,
+    userId,
+    titles.map((title) => ({ title, source })),
+  );
+};
+
+/**
+ * Import multiple issue records at once
+ */
+export const importIssueRecords = async (
+  gameId: string,
+  userId: string,
+  issues: ImportIssueInput[],
 ): Promise<IssueRecord[]> => {
   try {
     // Check if user has permission to manage issues
@@ -291,16 +308,20 @@ export const importIssues = async (
       );
     }
 
-    // Validate titles
-    const validTitles = titles
-      .map((title) => title.trim())
+    const validIssues = issues
+      .map((issue) => ({
+        title: issue.title.trim(),
+        source: (issue.source || "manual").trim() || "manual",
+        external_key: issue.external_key?.trim() || null,
+        external_url: issue.external_url?.trim() || null,
+      }))
       .filter(
-        (title) =>
-          title.length >= GAME_VALIDATION.ISSUE_TITLE_MIN_LENGTH &&
-          title.length <= GAME_VALIDATION.ISSUE_TITLE_MAX_LENGTH,
+        (issue) =>
+          issue.title.length >= GAME_VALIDATION.ISSUE_TITLE_MIN_LENGTH &&
+          issue.title.length <= GAME_VALIDATION.ISSUE_TITLE_MAX_LENGTH,
       );
 
-    if (validTitles.length === 0) {
+    if (validIssues.length === 0) {
       throw new Error("No valid issue titles provided");
     }
 
@@ -324,12 +345,30 @@ export const importIssues = async (
       // Insert all issues
       const createdIssues: IssueRecord[] = [];
 
-      for (const title of validTitles) {
+      for (const issue of validIssues) {
         const result = await client.query(
-          `INSERT INTO issues (game_id, title, status, created_by, display_order)
-           VALUES ($1, $2, $3, $4, $5)
+          `INSERT INTO issues (
+             game_id,
+             title,
+             status,
+             created_by,
+             display_order,
+             source,
+             external_key,
+             external_url
+           )
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
            RETURNING *`,
-          [gameId, title, IssueStatus.PENDING, userId, nextOrder++],
+          [
+            gameId,
+            issue.title,
+            IssueStatus.PENDING,
+            userId,
+            nextOrder++,
+            issue.source,
+            issue.external_key,
+            issue.external_url,
+          ],
         );
         createdIssues.push(result.rows[0] as IssueRecord);
       }
@@ -348,6 +387,39 @@ export const importIssues = async (
     }
   } catch (error) {
     logger.error("Error importing issues:", error);
+    throw error;
+  }
+};
+
+export const getExistingExternalIssueKeys = async (
+  gameId: string,
+  source: string,
+  externalKeys: string[],
+): Promise<Set<string>> => {
+  const uniqueKeys = Array.from(
+    new Set(externalKeys.map((key) => key.trim()).filter(Boolean)),
+  );
+
+  if (uniqueKeys.length === 0) {
+    return new Set();
+  }
+
+  try {
+    const result = await db.query(
+      `SELECT external_key FROM issues
+       WHERE game_id = $1
+         AND source = $2
+         AND external_key = ANY($3::text[])`,
+      [gameId, source, uniqueKeys],
+    );
+
+    return new Set(
+      result.rows
+        .map((row) => row.external_key)
+        .filter((key): key is string => typeof key === "string"),
+    );
+  } catch (error) {
+    logger.error("Error checking existing external issue keys:", error);
     throw error;
   }
 };

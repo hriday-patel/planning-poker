@@ -66,6 +66,39 @@ export interface Issue {
   created_by: string;
   created_at: string;
   display_order: number;
+  source?: string;
+  external_key?: string | null;
+  external_url?: string | null;
+}
+
+export type JiraDuplicateAction = "skip" | "include";
+
+export interface JiraImportRequest {
+  siteUrl: string;
+  email: string;
+  apiToken: string;
+  sprintId: string;
+}
+
+export interface JiraImportCandidate {
+  key: string;
+  title: string;
+  url: string;
+  issueType: string | null;
+  status: string | null;
+  isDuplicate: boolean;
+}
+
+export interface JiraImportPreviewResponse {
+  candidates: JiraImportCandidate[];
+  count: number;
+  duplicateCount: number;
+}
+
+export interface JiraImportConfirmResponse {
+  issues: Issue[];
+  count: number;
+  skippedDuplicates: number;
 }
 
 export interface VotingResults {

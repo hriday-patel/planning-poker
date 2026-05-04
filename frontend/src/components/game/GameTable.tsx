@@ -454,7 +454,7 @@ export default function GameTable({
 
         {showDeck ? (
           <div
-            className="min-h-[10rem] shrink-0 border-t pt-3"
+            className="flex min-h-40 shrink-0 flex-col border-t pt-3"
             style={{ borderColor: "var(--border-subtle)" }}
           >
             <VotingDeck
@@ -468,7 +468,7 @@ export default function GameTable({
           </div>
         ) : hasRevealedResults ? (
           <div
-            className="min-h-[10rem] shrink-0 border-t pt-3"
+            className="min-h-40 shrink-0 border-t pt-3"
             style={{ borderColor: "var(--border-subtle)" }}
           >
             <VotingResultsPanel

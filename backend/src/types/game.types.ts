@@ -197,6 +197,9 @@ export interface IssueRecord {
   created_at: Date;
   updated_at: Date;
   display_order: number;
+  source: string;
+  external_key: string | null;
+  external_url: string | null;
 }
 
 /**
@@ -221,6 +224,22 @@ export interface UpdateIssuePayload {
  */
 export interface ImportIssuesPayload {
   issues: string[]; // Array of issue titles
+}
+
+export interface ImportIssueInput {
+  title: string;
+  source?: string;
+  external_key?: string | null;
+  external_url?: string | null;
+}
+
+export interface JiraImportCandidate {
+  key: string;
+  title: string;
+  url: string;
+  issueType: string | null;
+  status: string | null;
+  isDuplicate?: boolean;
 }
 
 export interface VotingRoundRecord {

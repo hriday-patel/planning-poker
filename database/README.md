@@ -47,7 +47,7 @@ Tracks which users have joined which games.
 User stories/tasks to be estimated.
 
 - **Primary Key**: `id` (UUID)
-- **Key Fields**: game_id, title, status, final_estimate, display_order
+- **Key Fields**: game_id, title, status, final_estimate, display_order, source, external_key, external_url
 - **Status Values**: 'pending', 'voting', 'voted'
 - **Purpose**: Manage estimation backlog
 
@@ -121,6 +121,7 @@ Automatic `updated_at` timestamp triggers on:
 - **001_initial_schema.sql**: Creates all tables, indexes, triggers, and default data
 - **002_add_decks_name_unique_constraint.sql**: Adds the deck-name unique constraint expected by deck initialization on older local databases
 - **003_game_stability_settings.sql**: Adds spectator-toggle settings, removes the old fun-feature column, and inserts the Normal (0-10) deck
+- **004_add_issue_external_metadata.sql**: Adds source/key/link metadata used by Jira sprint imports
 - **001_initial_schema_down.sql**: Rollback script to drop all database objects
 
 ## Running Migrations

@@ -8,6 +8,7 @@ import { Router, Request, Response } from "express";
 import multer from "multer";
 import { parse } from "csv-parse/sync";
 import { AuthenticatedRequest } from "../types/auth.types";
+import { ImportIssueInput } from "../types/game.types";
 import { ServerEvents } from "../types/websocket.types";
 import { authenticate } from "../middleware/auth";
 import { uploadRateLimiter } from "../middleware/rateLimiter";
@@ -17,11 +18,52 @@ import {
   updateIssue,
   deleteIssue,
   importIssues,
+  importIssueRecords,
+  getExistingExternalIssueKeys,
   setVotingIssue,
 } from "../services/issueService";
+import { hasGamePermission } from "../services/gameService";
+import { fetchJiraSprintIssues, JiraApiError } from "../services/jiraService";
 import { logger } from "../utils/logger";
 
 const router = Router();
+const JIRA_SOURCE = "jira";
+
+const getJiraRequestFields = (body: any) => {
+  const siteUrl = typeof body.siteUrl === "string" ? body.siteUrl.trim() : "";
+  const email = typeof body.email === "string" ? body.email.trim() : "";
+  const apiToken =
+    typeof body.apiToken === "string" ? body.apiToken.trim() : "";
+  const sprintId =
+    typeof body.sprintId === "string" ? body.sprintId.trim() : "";
+
+  return { siteUrl, email, apiToken, sprintId };
+};
+
+const handleIssueImportError = (res: Response, error: any): void => {
+  if (
+    error.message === "You don't have permission to manage issues in this game"
+  ) {
+    res.status(403).json({
+      success: false,
+      error: error.message,
+    });
+    return;
+  }
+
+  if (error.message === "No valid issue titles provided") {
+    res.status(400).json({
+      success: false,
+      error: error.message,
+    });
+    return;
+  }
+
+  res.status(500).json({
+    success: false,
+    error: "Failed to import issues",
+  });
+};
 
 // Configure multer for CSV uploads
 const upload = multer({
@@ -300,6 +342,211 @@ router.delete(
 );
 
 /**
+ * POST /api/v1/games/:gameId/issues/import/jira/preview
+ * Preview Jira sprint issues before importing
+ */
+router.post(
+  "/:gameId/issues/import/jira/preview",
+  authenticate as any,
+  uploadRateLimiter,
+  async (req: Request, res: Response): Promise<void> => {
+    const authReq = req as AuthenticatedRequest;
+
+    try {
+      if (!authReq.userId) {
+        res.status(401).json({
+          success: false,
+          error: "Not authenticated",
+        });
+        return;
+      }
+
+      const { gameId } = req.params;
+      const { siteUrl, email, apiToken, sprintId } = getJiraRequestFields(
+        req.body,
+      );
+
+      if (!siteUrl || !email || !apiToken || !sprintId) {
+        res.status(400).json({
+          success: false,
+          error: "Jira site, email, API token, and sprint ID are required",
+        });
+        return;
+      }
+
+      const hasPermission = await hasGamePermission(
+        gameId,
+        authReq.userId,
+        "manage_issues",
+      );
+
+      if (!hasPermission) {
+        res.status(403).json({
+          success: false,
+          error: "You don't have permission to manage issues in this game",
+        });
+        return;
+      }
+
+      const jiraIssues = await fetchJiraSprintIssues({
+        siteUrl,
+        email,
+        apiToken,
+        sprintId,
+      });
+      const existingKeys = await getExistingExternalIssueKeys(
+        gameId,
+        JIRA_SOURCE,
+        jiraIssues.map((issue) => issue.key),
+      );
+      const candidates = jiraIssues.map((issue) => ({
+        ...issue,
+        isDuplicate: existingKeys.has(issue.key),
+      }));
+
+      res.json({
+        success: true,
+        candidates,
+        count: candidates.length,
+        duplicateCount: candidates.filter((issue) => issue.isDuplicate).length,
+      });
+      return;
+    } catch (error: any) {
+      logger.error("Error previewing Jira issues:", {
+        message: error?.message,
+        statusCode: error?.statusCode,
+      });
+
+      if (error instanceof JiraApiError) {
+        res.status(error.statusCode >= 500 ? 502 : error.statusCode).json({
+          success: false,
+          error: error.message,
+        });
+        return;
+      }
+
+      res.status(500).json({
+        success: false,
+        error: "Failed to preview Jira issues",
+      });
+      return;
+    }
+  },
+);
+
+/**
+ * POST /api/v1/games/:gameId/issues/import/jira/confirm
+ * Import selected Jira sprint issues after preview
+ */
+router.post(
+  "/:gameId/issues/import/jira/confirm",
+  authenticate as any,
+  uploadRateLimiter,
+  async (req: Request, res: Response): Promise<void> => {
+    const authReq = req as AuthenticatedRequest;
+
+    try {
+      if (!authReq.userId) {
+        res.status(401).json({
+          success: false,
+          error: "Not authenticated",
+        });
+        return;
+      }
+
+      const { gameId } = req.params;
+      const duplicateAction =
+        req.body?.duplicateAction === "include" ? "include" : "skip";
+      const candidateIssues: any[] = Array.isArray(req.body?.issues)
+        ? req.body.issues
+        : [];
+
+      const sanitizedIssues = candidateIssues.reduce<ImportIssueInput[]>(
+        (issues, issue: any) => {
+          const title =
+            typeof issue.title === "string" ? issue.title.trim() : "";
+          const externalKey =
+            typeof issue.key === "string" ? issue.key.trim() : "";
+
+          if (!title || !externalKey) {
+            return issues;
+          }
+
+          issues.push({
+            title,
+            source: JIRA_SOURCE,
+            external_key: externalKey,
+            external_url:
+              typeof issue.url === "string" ? issue.url.trim() || null : null,
+          });
+
+          return issues;
+        },
+        [],
+      );
+
+      if (sanitizedIssues.length === 0) {
+        res.status(400).json({
+          success: false,
+          error: "Choose at least one Jira issue to import",
+        });
+        return;
+      }
+
+      let issuesToImport = sanitizedIssues;
+      let skippedDuplicates = 0;
+
+      if (duplicateAction === "skip") {
+        const existingKeys = await getExistingExternalIssueKeys(
+          gameId,
+          JIRA_SOURCE,
+          sanitizedIssues.map((issue) => issue.external_key || ""),
+        );
+        issuesToImport = sanitizedIssues.filter(
+          (issue) => !existingKeys.has(issue.external_key || ""),
+        );
+        skippedDuplicates = sanitizedIssues.length - issuesToImport.length;
+      }
+
+      if (issuesToImport.length === 0) {
+        res.status(200).json({
+          success: true,
+          issues: [],
+          count: 0,
+          skippedDuplicates,
+        });
+        return;
+      }
+
+      const importedIssues = await importIssueRecords(
+        gameId,
+        authReq.userId,
+        issuesToImport,
+      );
+
+      const socketServer = req.app.get("io");
+      if (socketServer) {
+        importedIssues.forEach((issue) => {
+          socketServer.to(gameId).emit(ServerEvents.ISSUE_ADDED, { issue });
+        });
+      }
+
+      res.status(201).json({
+        success: true,
+        issues: importedIssues,
+        count: importedIssues.length,
+        skippedDuplicates,
+      });
+      return;
+    } catch (error: any) {
+      logger.error("Error importing Jira issues:", error);
+      handleIssueImportError(res, error);
+      return;
+    }
+  },
+);
+
+/**
  * POST /api/v1/games/:gameId/issues/import
  * Import issues from various sources
  */
@@ -378,6 +625,7 @@ router.post(
         gameId,
         authReq.userId,
         issueTitles,
+        source,
       );
 
       const socketServer = req.app.get("io");
@@ -396,29 +644,7 @@ router.post(
     } catch (error: any) {
       logger.error("Error importing issues:", error);
 
-      if (
-        error.message ===
-        "You don't have permission to manage issues in this game"
-      ) {
-        res.status(403).json({
-          success: false,
-          error: error.message,
-        });
-        return;
-      }
-
-      if (error.message === "No valid issue titles provided") {
-        res.status(400).json({
-          success: false,
-          error: error.message,
-        });
-        return;
-      }
-
-      res.status(500).json({
-        success: false,
-        error: "Failed to import issues",
-      });
+      handleIssueImportError(res, error);
       return;
     }
   },
