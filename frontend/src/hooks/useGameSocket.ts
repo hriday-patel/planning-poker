@@ -425,14 +425,15 @@ export function useGameSocket(options: UseGameSocketOptions) {
       // Voting events
       socket.on(
         ServerEvents.VOTE_SUBMITTED,
-        ({ user_id }: { user_id: string }) => {
-          logger.log("Vote submitted by:", user_id);
+        ({ user_id, has_voted }: { user_id: string; has_voted?: boolean }) => {
+          logger.log("Vote state changed by:", user_id);
+          const nextHasVoted = has_voted ?? true;
           updateGameState((prev) => {
             if (!prev) return prev;
             return {
               ...prev,
               players: prev.players.map((p) =>
-                p.user_id === user_id ? { ...p, has_voted: true } : p,
+                p.user_id === user_id ? { ...p, has_voted: nextHasVoted } : p,
               ),
             };
           });

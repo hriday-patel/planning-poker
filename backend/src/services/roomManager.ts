@@ -267,7 +267,7 @@ export const submitVote = (
   gameId: string,
   userId: string,
   cardValue: string,
-): void => {
+): { has_voted: boolean } => {
   const room = rooms.get(gameId);
   if (!room || !room.current_round) {
     throw new Error("No active voting round");
@@ -296,11 +296,19 @@ export const submitVote = (
     throw new Error("Cannot vote after cards have been revealed");
   }
 
+  if (room.current_round.votes.get(userId) === cardValue) {
+    room.current_round.votes.delete(userId);
+    room.current_round.vote_times.delete(userId);
+    logger.info(`Vote cleared by ${userId} in room ${gameId}`);
+    return { has_voted: false };
+  }
+
   if (!room.current_round.vote_times.has(userId)) {
     room.current_round.vote_times.set(userId, new Date());
   }
   room.current_round.votes.set(userId, cardValue);
   logger.info(`Vote submitted by ${userId} in room ${gameId}`);
+  return { has_voted: true };
 };
 
 /**

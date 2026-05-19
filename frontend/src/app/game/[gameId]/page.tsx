@@ -38,6 +38,21 @@ import {
   Textarea,
 } from "@/components/ui";
 
+const getNextPendingIssue = (
+  issues: Issue[],
+  anchorIssueId: string | null,
+): Issue | null => {
+  if (!anchorIssueId) {
+    return issues.find((issue) => issue.status === "pending") || null;
+  }
+
+  const anchorIndex = issues.findIndex((issue) => issue.id === anchorIssueId);
+  const candidateIssues =
+    anchorIndex >= 0 ? issues.slice(anchorIndex + 1) : issues;
+
+  return candidateIssues.find((issue) => issue.status === "pending") || null;
+};
+
 export default function GameRoomPage() {
   const params = useParams();
   const router = useRouter();
@@ -75,6 +90,9 @@ export default function GameRoomPage() {
   const [timerAlert, setTimerAlert] = useState(false);
   const [newIssueTitle, setNewIssueTitle] = useState("");
   const [editingIssue, setEditingIssue] = useState<Issue | null>(null);
+  const [lastIssueAnchorId, setLastIssueAnchorId] = useState<string | null>(
+    null,
+  );
   const [editIssueTitle, setEditIssueTitle] = useState("");
   const [editIssueError, setEditIssueError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -172,7 +190,8 @@ export default function GameRoomPage() {
         }
       }, 700);
     },
-    onIssueSkipped: () => {
+    onIssueSkipped: (_roundId, issueId) => {
+      setLastIssueAnchorId(issueId);
       setVotingResults(null);
       setShowCountdown(false);
       setCountdownNumber(3);
@@ -187,6 +206,7 @@ export default function GameRoomPage() {
       }));
     },
     onNewRound: (_roundId, issueId) => {
+      setLastIssueAnchorId(issueId);
       setVotingResults(null);
       setActionError(null);
       setGameState((prev) => ({
@@ -333,8 +353,12 @@ export default function GameRoomPage() {
   );
 
   const nextPendingIssue = useMemo(
-    () => gameState.issues.find((issue) => issue.status === "pending") || null,
-    [gameState.issues],
+    () =>
+      getNextPendingIssue(
+        gameState.issues,
+        activeIssue?.id || lastIssueAnchorId,
+      ),
+    [activeIssue?.id, gameState.issues, lastIssueAnchorId],
   );
 
   const issueCounts = useMemo(
@@ -650,11 +674,13 @@ export default function GameRoomPage() {
       return;
     }
 
+    const nextSelectedCard = gameState.selectedCard === value ? null : value;
+
     setGameState((prev) => ({
       ...prev,
       error: null,
-      selectedCard: value,
-      votingPhase: VotingPhase.VOTING,
+      selectedCard: nextSelectedCard,
+      votingPhase: nextSelectedCard ? VotingPhase.VOTING : VotingPhase.WAITING,
     }));
 
     submitVote(value);
@@ -697,6 +723,7 @@ export default function GameRoomPage() {
     }
 
     setVotingResults(null);
+    setShowIssuesPanel(true);
     setActionError(null);
     skipIssue();
   };
@@ -728,7 +755,11 @@ export default function GameRoomPage() {
 
     if (!nextPendingIssue) {
       setShowIssuesPanel(true);
-      setActionError("No pending issues to vote");
+      setActionError(
+        pendingIssues.length > 0
+          ? "No later pending issues to vote"
+          : "No pending issues to vote",
+      );
       return;
     }
 

@@ -120,6 +120,7 @@ export interface PlayerLeftPayload {
 
 export interface VoteSubmittedPayload {
   user_id: string;
+  has_voted: boolean;
   // Value is hidden until reveal
 }
 

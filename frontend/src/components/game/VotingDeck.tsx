@@ -79,7 +79,11 @@ export default function VotingDeck({
               disabled={!canPickCards}
               aria-pressed={selectedCard === value}
               title={
-                canPickCards ? `Vote ${value}` : "Pick an issue before voting"
+                canPickCards
+                  ? selectedCard === value
+                    ? `Unselect ${value}`
+                    : `Vote ${value}`
+                  : "Pick an issue before voting"
               }
               className={`flex w-full items-center justify-center border font-bold transition-transform enabled:hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45 ${cardSizeClass}`}
               style={{

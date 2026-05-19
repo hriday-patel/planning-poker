@@ -152,6 +152,31 @@ describe("roomManager voting eligibility", () => {
     ).toBe(true);
   });
 
+  it("clears a player's vote when they submit the same card again", async () => {
+    const gameId = "toggle-vote-game";
+
+    await addPlayerToRoom(gameId, "socket-u1", "u1");
+    await addPlayerToRoom(gameId, "socket-u2", "u2");
+    startVotingRound(gameId, "round-1", "issue-1");
+
+    expect(submitVote(gameId, "u1", "3")).toEqual({ has_voted: true });
+    expect(submitVote(gameId, "u2", "5")).toEqual({ has_voted: true });
+    expect(haveAllPlayersVoted(gameId)).toBe(true);
+
+    expect(submitVote(gameId, "u1", "3")).toEqual({ has_voted: false });
+
+    const activeState = await getRoomState(gameId);
+    const toggledVoteState = activeState.current_round?.votes.find(
+      (vote) => vote.user_id === "u1",
+    );
+
+    expect(toggledVoteState?.has_voted).toBe(false);
+    expect(haveAllPlayersVoted(gameId)).toBe(false);
+    expect(calculateVotingResults(gameId).votes).toEqual([
+      { user_id: "u2", card_value: "5", submitted_at: expect.any(String) },
+    ]);
+  });
+
   it("skips the active issue round and clears submitted votes", async () => {
     const gameId = "skip-round-game";
 

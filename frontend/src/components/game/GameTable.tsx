@@ -1,6 +1,13 @@
 "use client";
 
-import { Check, CircleDot, Eye, EyeOff, SkipForward, Users } from "lucide-react";
+import {
+  Check,
+  CircleDot,
+  Eye,
+  EyeOff,
+  SkipForward,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui";
 import type { Issue, Player } from "@/types/game.types";
 import { VotingPhase } from "@/types/game.types";

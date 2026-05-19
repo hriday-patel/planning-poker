@@ -220,12 +220,12 @@ export const registerHandlers = (io: SocketIOServer) => {
             throw new Error("Game ID is required");
           }
 
-          // Submit vote
-          submitVote(gameId, userId, card_value);
+          const voteState = submitVote(gameId, userId, card_value);
 
-          // Notify all players that a vote was submitted (without revealing value)
+          // Notify all players that a vote state changed without revealing value
           io.to(gameId).emit(ServerEvents.VOTE_SUBMITTED, {
             user_id: userId,
+            has_voted: voteState.has_voted,
           });
 
           // Check if all players have voted and auto-reveal is enabled
@@ -254,7 +254,7 @@ export const registerHandlers = (io: SocketIOServer) => {
             io.to(gameId).emit(ServerEvents.CARDS_REVEALED, results);
           }
 
-          logger.info(`Vote submitted by ${userId} in game ${gameId}`);
+          logger.info(`Vote state changed by ${userId} in game ${gameId}`);
         } catch (error: any) {
           logger.error("Error submitting vote:", error);
           authSocket.emit(ServerEvents.ERROR, {
@@ -332,45 +332,48 @@ export const registerHandlers = (io: SocketIOServer) => {
     /**
      * SKIP_ISSUE - Skip the active issue before voting is complete
      */
-    authSocket.on(ClientEvents.SKIP_ISSUE, async (payload: SkipIssuePayload) => {
-      try {
-        const { game_id, round_id, issue_id } = payload;
+    authSocket.on(
+      ClientEvents.SKIP_ISSUE,
+      async (payload: SkipIssuePayload) => {
+        try {
+          const { game_id, round_id, issue_id } = payload;
 
-        if (!game_id || !round_id || !issue_id) {
-          throw new Error("Game, round, and issue are required");
+          if (!game_id || !round_id || !issue_id) {
+            throw new Error("Game, round, and issue are required");
+          }
+
+          const gameState = await getRoomState(game_id);
+          if (gameState.game.facilitator_id !== userId) {
+            throw new Error("Only the facilitator can skip issue voting");
+          }
+
+          const skippedRound = skipVotingRound(game_id, round_id, issue_id);
+          const updatedIssue = await skipIssueVotingRound(
+            game_id,
+            skippedRound.round_id,
+            skippedRound.issue_id,
+          );
+
+          io.to(game_id).emit(ServerEvents.ISSUE_UPDATED, {
+            issue: updatedIssue,
+          });
+          io.to(game_id).emit(ServerEvents.ISSUE_SKIPPED, skippedRound);
+          io.to(game_id).emit(
+            ServerEvents.GAME_STATE,
+            await getRoomState(game_id),
+          );
+
+          logger.info(
+            `Issue ${issue_id} skipped in game ${game_id} by facilitator ${userId}`,
+          );
+        } catch (error: any) {
+          logger.error("Error skipping issue:", error);
+          authSocket.emit(ServerEvents.ERROR, {
+            message: error.message || "Failed to skip issue",
+          });
         }
-
-        const gameState = await getRoomState(game_id);
-        if (gameState.game.facilitator_id !== userId) {
-          throw new Error("Only the facilitator can skip issue voting");
-        }
-
-        const skippedRound = skipVotingRound(game_id, round_id, issue_id);
-        const updatedIssue = await skipIssueVotingRound(
-          game_id,
-          skippedRound.round_id,
-          skippedRound.issue_id,
-        );
-
-        io.to(game_id).emit(ServerEvents.ISSUE_UPDATED, {
-          issue: updatedIssue,
-        });
-        io.to(game_id).emit(ServerEvents.ISSUE_SKIPPED, skippedRound);
-        io.to(game_id).emit(
-          ServerEvents.GAME_STATE,
-          await getRoomState(game_id),
-        );
-
-        logger.info(
-          `Issue ${issue_id} skipped in game ${game_id} by facilitator ${userId}`,
-        );
-      } catch (error: any) {
-        logger.error("Error skipping issue:", error);
-        authSocket.emit(ServerEvents.ERROR, {
-          message: error.message || "Failed to skip issue",
-        });
-      }
-    });
+      },
+    );
 
     /**
      * START_NEW_ROUND - Start a new voting round
