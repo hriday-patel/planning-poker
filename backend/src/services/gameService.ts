@@ -16,7 +16,7 @@ import {
   GAME_VALIDATION,
 } from "../types/game.types";
 import { logger } from "../utils/logger";
-import { getDeckById, getDeckByName, getDefaultDeck } from "./deckService";
+import { getDeckById, getDeckByName, getDefaultDeck, createCustomDeck } from "./deckService";
 
 interface VotingSpeedStat {
   user_id: string;
@@ -81,19 +81,43 @@ export const createGame = async (
       );
     }
 
-    const deck = await resolveDeck(payload.deck_id || payload.voting_system);
-    if (!deck) {
-      throw new Error("Invalid voting system selected");
+    let deck;
+    
+    // Handle custom voting system
+    if (payload.voting_system === "custom" && payload.custom_deck_values) {
+      // Validate custom deck values
+      if (!Array.isArray(payload.custom_deck_values) || payload.custom_deck_values.length < GAME_VALIDATION.DECK_VALUES_MIN_COUNT) {
+        throw new Error(`Custom deck must have at least ${GAME_VALIDATION.DECK_VALUES_MIN_COUNT} values`);
+      }
+
+      if (payload.custom_deck_values.length > GAME_VALIDATION.DECK_VALUES_MAX_COUNT) {
+        throw new Error(`Custom deck cannot have more than ${GAME_VALIDATION.DECK_VALUES_MAX_COUNT} values`);
+      }
+
+      // Create a temporary custom deck
+      const timestamp = Date.now();
+      const customDeckName = `Custom-${userId.substring(0, 8)}-${timestamp}`;
+      
+      deck = await createCustomDeck(userId, {
+        name: customDeckName,
+        values: payload.custom_deck_values,
+      });
+    } else {
+      // Use existing deck resolution logic
+      deck = await resolveDeck(payload.deck_id || payload.voting_system);
+      if (!deck) {
+        throw new Error("Invalid voting system selected");
+      }
     }
 
     const deckId = deck.id;
 
     // Set default values for optional fields
-    const whoCanReveal = payload.who_can_reveal || GamePermission.ALL_PLAYERS;
+    const whoCanReveal = payload.who_can_reveal || GamePermission.FACILITATOR_ONLY;
     const whoCanManageIssues =
-      payload.who_can_manage_issues || GamePermission.ALL_PLAYERS;
+      payload.who_can_manage_issues || GamePermission.FACILITATOR_ONLY;
     const whoCanToggleSpectator =
-      payload.who_can_toggle_spectator || GamePermission.ALL_PLAYERS;
+      payload.who_can_toggle_spectator || GamePermission.FACILITATOR_ONLY;
     const autoReveal = payload.auto_reveal ?? false;
     const showAverage = payload.show_average ?? true;
     const showCountdown = payload.show_countdown ?? true;

@@ -229,7 +229,7 @@ export default function GameTable({
                 color: "var(--text-secondary)",
               }}
             >
-              {votedCount}/{eligiblePlayerCount} voted
+              {votedCount}/{eligiblePlayerCount} players voted
             </span>
           </div>
         </div>

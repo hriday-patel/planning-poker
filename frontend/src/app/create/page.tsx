@@ -34,16 +34,17 @@ function CreateGamePageContent() {
   const [displayName, setDisplayName] = useState("");
   const [gameName, setGameName] = useState("");
   const [votingSystem, setVotingSystem] = useState("fibonacci");
+  const [customValues, setCustomValues] = useState<string[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [canCreateGame, setCanCreateGame] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [whoCanReveal, setWhoCanReveal] = useState("all_players");
-  const [whoCanManageIssues, setWhoCanManageIssues] = useState("all_players");
+  const [whoCanReveal, setWhoCanReveal] = useState("facilitator_only");
+  const [whoCanManageIssues, setWhoCanManageIssues] = useState("facilitator_only");
   const [whoCanToggleSpectator, setWhoCanToggleSpectator] =
-    useState("all_players");
+    useState("facilitator_only");
   const [autoReveal, setAutoReveal] = useState(false);
   const [showAverage, setShowAverage] = useState(true);
   const [showCountdown, setShowCountdown] = useState(true);
@@ -83,6 +84,14 @@ function CreateGamePageContent() {
     void checkSession();
   }, [isGuestMode, router]);
 
+  const handleCustomValueToggle = (value: string) => {
+    setCustomValues((prev) =>
+      prev.includes(value)
+        ? prev.filter((v) => v !== value)
+        : [...prev, value]
+    );
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
 
@@ -95,10 +104,37 @@ function CreateGamePageContent() {
       return;
     }
 
+    // Validate custom voting system
+    if (votingSystem === "custom") {
+      if (customValues.length < 2) {
+        setError("Please select at least 2 card values for custom voting system");
+        return;
+      }
+    }
+
     setIsLoading(true);
     setError(null);
 
     try {
+      const payload: any = {
+        name: gameName.trim(),
+        voting_system: votingSystem,
+        displayName: isGuestMode
+          ? displayName.trim() || undefined
+          : undefined,
+        who_can_reveal: whoCanReveal,
+        who_can_manage_issues: whoCanManageIssues,
+        who_can_toggle_spectator: whoCanToggleSpectator,
+        auto_reveal: autoReveal,
+        show_average: showAverage,
+        show_countdown: showCountdown,
+      };
+
+      // Add custom values if custom voting system is selected
+      if (votingSystem === "custom") {
+        payload.custom_deck_values = customValues;
+      }
+
       const response = await apiFetch(
         isGuestMode ? "/api/v1/guest/games" : "/api/v1/games",
         {
@@ -106,19 +142,7 @@ function CreateGamePageContent() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            name: gameName.trim(),
-            voting_system: votingSystem,
-            displayName: isGuestMode
-              ? displayName.trim() || undefined
-              : undefined,
-            who_can_reveal: whoCanReveal,
-            who_can_manage_issues: whoCanManageIssues,
-            who_can_toggle_spectator: whoCanToggleSpectator,
-            auto_reveal: autoReveal,
-            show_average: showAverage,
-            show_countdown: showCountdown,
-          }),
+          body: JSON.stringify(payload),
         },
       );
 
@@ -279,7 +303,12 @@ function CreateGamePageContent() {
               <Field label="Voting System">
                 <Select
                   value={votingSystem}
-                  onChange={(e) => setVotingSystem(e.target.value)}
+                  onChange={(e) => {
+                    setVotingSystem(e.target.value);
+                    if (e.target.value !== "custom") {
+                      setCustomValues([]);
+                    }
+                  }}
                   disabled={!canCreateGame}
                 >
                   <option value="fibonacci">
@@ -293,8 +322,115 @@ function CreateGamePageContent() {
                     Powers of 2 (1, 2, 4, 8, 16...)
                   </option>
                   <option value="normal-0-10">Normal (0, 1, 2, 3...10)</option>
+                  <option value="custom">Custom</option>
                 </Select>
               </Field>
+
+              {votingSystem === "custom" && (
+                <Field
+                  label="Select Card Values"
+                  helperText={`Select at least 2 values (${customValues.length} selected)`}
+                >
+                  <div
+                    className="rounded-lg border p-4"
+                    style={{
+                      backgroundColor: "var(--surface-secondary)",
+                      borderColor: "var(--border-color)",
+                    }}
+                  >
+                    <div className="mb-3">
+                      <p
+                        className="mb-2 text-sm font-medium"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Numbers (1-15)
+                      </p>
+                      <div className="grid grid-cols-5 gap-2">
+                        {Array.from({ length: 15 }, (_, i) => (i + 1).toString()).map(
+                          (value) => (
+                            <label
+                              key={value}
+                              className="flex cursor-pointer items-center gap-2 rounded p-2 transition-colors hover:bg-opacity-80"
+                              style={{
+                                backgroundColor: customValues.includes(value)
+                                  ? "var(--primary-bg)"
+                                  : "var(--surface-primary)",
+                                borderWidth: "1px",
+                                borderStyle: "solid",
+                                borderColor: customValues.includes(value)
+                                  ? "var(--primary)"
+                                  : "var(--border-color)",
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={customValues.includes(value)}
+                                onChange={() => handleCustomValueToggle(value)}
+                                className="h-4 w-4 rounded"
+                                style={{ accentColor: "var(--primary)" }}
+                              />
+                              <span
+                                className="text-sm font-medium"
+                                style={{
+                                  color: customValues.includes(value)
+                                    ? "var(--primary)"
+                                    : "var(--text-primary)",
+                                }}
+                              >
+                                {value}
+                              </span>
+                            </label>
+                          )
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p
+                        className="mb-2 text-sm font-medium"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        Special Cards
+                      </p>
+                      <div className="grid grid-cols-5 gap-2">
+                        {["?", "☕"].map((value) => (
+                          <label
+                            key={value}
+                            className="flex cursor-pointer items-center gap-2 rounded p-2 transition-colors hover:bg-opacity-80"
+                            style={{
+                              backgroundColor: customValues.includes(value)
+                                ? "var(--primary-bg)"
+                                : "var(--surface-primary)",
+                              borderWidth: "1px",
+                              borderStyle: "solid",
+                              borderColor: customValues.includes(value)
+                                ? "var(--primary)"
+                                : "var(--border-color)",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={customValues.includes(value)}
+                              onChange={() => handleCustomValueToggle(value)}
+                              className="h-4 w-4 rounded"
+                              style={{ accentColor: "var(--primary)" }}
+                            />
+                            <span
+                              className="text-sm font-medium"
+                              style={{
+                                color: customValues.includes(value)
+                                  ? "var(--primary)"
+                                  : "var(--text-primary)",
+                              }}
+                            >
+                              {value === "?" ? "? (Unknown)" : "☕ (Break)"}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </Field>
+              )}
 
               <Button
                 type="button"

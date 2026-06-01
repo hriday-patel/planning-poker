@@ -105,7 +105,6 @@ export default function GameTopBar({
               </div>
               <p className="text-xs" style={{ color: "var(--text-tertiary)" }}>
                 {isConnected ? "Live room" : "Connecting"} ·{" "}
-                {eligiblePlayerCount} eligible
               </p>
             </div>
           </button>

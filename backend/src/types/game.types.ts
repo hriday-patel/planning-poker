@@ -68,6 +68,7 @@ export interface CreateGamePayload {
   name: string;
   deck_id?: string; // Deck ID or supported voting-system alias
   voting_system?: string;
+  custom_deck_values?: string[]; // For custom voting system
   who_can_reveal?: GamePermission;
   who_can_manage_issues?: GamePermission;
   who_can_toggle_spectator?: GamePermission;

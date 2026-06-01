@@ -98,10 +98,19 @@ router.post(
           ? req.body.displayName.trim()
           : "";
 
+      // Validate display name is provided
+      if (!requestedDisplayName) {
+        res.status(400).json({
+          success: false,
+          error: "Display name is required",
+        });
+        return;
+      }
+
       // If no user is authenticated, create a guest session
       if (!userId) {
         const { user, tokens } = await createGuestSession(
-          requestedDisplayName || undefined,
+          requestedDisplayName,
         );
         userId = user.userId;
         isNewGuest = true;
@@ -120,6 +129,7 @@ router.post(
         name,
         voting_system,
         deck_id,
+        custom_deck_values,
         who_can_reveal,
         who_can_manage_issues,
         who_can_toggle_spectator,
@@ -139,7 +149,9 @@ router.post(
       // Create the game
       const game = await createGame(userId, {
         name,
+        voting_system,
         deck_id: deck_id ?? voting_system,
+        custom_deck_values,
         who_can_reveal,
         who_can_manage_issues,
         who_can_toggle_spectator,
@@ -199,10 +211,19 @@ router.post(
           ? req.body.displayName.trim()
           : "";
 
+      // Validate display name is provided
+      if (!requestedDisplayName) {
+        res.status(400).json({
+          success: false,
+          error: "Display name is required",
+        });
+        return;
+      }
+
       // If no user is authenticated, create a guest session
       if (!userId) {
         const { user, tokens } = await createGuestSession(
-          requestedDisplayName || undefined,
+          requestedDisplayName,
         );
         userId = user.userId;
         isNewGuest = true;

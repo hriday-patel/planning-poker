@@ -21,11 +21,11 @@ const GUEST_SESSION_NAMESPACE = "guest:session";
 const GUEST_SESSION_TTL_SECONDS = 7 * 24 * 60 * 60; // 7 days
 const GUEST_ID_PREFIX = "guest_";
 
-const normalizeGuestDisplayName = (displayName?: string): string | null => {
-  const trimmedDisplayName = displayName?.trim();
+const normalizeGuestDisplayName = (displayName: string): string => {
+  const trimmedDisplayName = displayName.trim();
 
   if (!trimmedDisplayName) {
-    return null;
+    throw new Error("Display name is required");
   }
 
   if (trimmedDisplayName.length > 40) {
@@ -89,12 +89,11 @@ export const isGuestUser = (userId: string): boolean => {
  * Create a guest user in the database
  */
 export const createGuestUser = async (
-  displayName?: string,
+  displayName: string,
 ): Promise<UserRecord> => {
   try {
     const guestId = generateGuestId();
-    const guestDisplayName =
-      normalizeGuestDisplayName(displayName) || generateGuestDisplayName();
+    const guestDisplayName = normalizeGuestDisplayName(displayName);
 
     const result = await db.query(
       `INSERT INTO users (id, display_name, avatar_url, spectator_mode, theme_preference)
@@ -240,12 +239,17 @@ export const deleteGuestSession = async (guestId: string): Promise<void> => {
  * Create a guest user and generate tokens
  */
 export const createGuestSession = async (
-  displayName?: string,
+  displayName: string,
 ): Promise<{
   user: UserSession;
   tokens: { accessToken: string; refreshToken: string };
 }> => {
   try {
+    // Validate display name is provided
+    if (!displayName || !displayName.trim()) {
+      throw new Error("Display name is required");
+    }
+
     // Create guest user in database
     const guestUser = await createGuestUser(displayName);
 

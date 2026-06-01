@@ -60,7 +60,7 @@ export default function GuestModeModal({
           },
           body: JSON.stringify({
             name: gameName,
-            displayName: displayName || undefined,
+            displayName: displayName.trim(),
           }),
         });
 
@@ -84,7 +84,7 @@ export default function GuestModeModal({
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            displayName: displayName || undefined,
+            displayName: displayName.trim(),
           }),
         });
 
@@ -124,15 +124,20 @@ export default function GuestModeModal({
       <form onSubmit={handleSubmit} className="overflow-y-auto">
         <div className="space-y-4 p-5">
           <Field
-            label="Display Name (Optional)"
-            helperText="A random name will be generated if left empty"
+            label={
+              <>
+                Display Name <span style={{ color: "var(--danger)" }}>*</span>
+              </>
+            }
+            helperText="Enter your name to join the game"
           >
             <Input
               type="text"
               id="displayName"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Leave empty for random name"
+              placeholder="Enter your display name"
+              required
               maxLength={40}
             />
           </Field>
@@ -158,11 +163,6 @@ export default function GuestModeModal({
           )}
 
           {error && <Alert variant="danger">{error}</Alert>}
-
-          <Alert variant="info">
-            <strong>Guest Mode:</strong> You can play without signing in. Your
-            session will last for 7 days.
-          </Alert>
         </div>
 
         <ModalFooter layout="split">
@@ -178,7 +178,7 @@ export default function GuestModeModal({
           <Button
             type="submit"
             variant="primary"
-            disabled={isLoading || (isCreateMode && !gameName)}
+            disabled={isLoading || !displayName.trim() || (isCreateMode && !gameName)}
             className="w-full"
           >
             {isLoading

@@ -46,6 +46,7 @@ router.post(
         name,
         voting_system,
         deck_id,
+        custom_deck_values,
         who_can_reveal,
         who_can_manage_issues,
         who_can_toggle_spectator,
@@ -64,7 +65,9 @@ router.post(
 
       const game = await createGame(authReq.userId, {
         name,
+        voting_system,
         deck_id: deck_id ?? voting_system,
+        custom_deck_values,
         who_can_reveal,
         who_can_manage_issues,
         who_can_toggle_spectator,
