@@ -170,7 +170,7 @@ export const SYSTEM_DECKS: Omit<Deck, "id" | "created_at">[] = [
   },
   {
     name: "Normal (0-10)",
-    values: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+    values: ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "?", "☕"],
     is_default: true,
     created_by: null,
   },

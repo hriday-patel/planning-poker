@@ -137,6 +137,7 @@ export default function GameRoomPage() {
     isReconnecting,
     submitVote,
     revealCards,
+    revote,
     skipIssue,
     startNewRound,
     updateGameSettings,
@@ -330,9 +331,13 @@ export default function GameRoomPage() {
     isConnected &&
     Boolean(activeRound?.issue_id) &&
     !activeRound?.is_revealed &&
-    allPlayersVoted &&
     currentUserCanReveal &&
     !gameState.game?.auto_reveal;
+  const canRevote =
+    isConnected &&
+    currentUserIsFacilitator &&
+    Boolean(activeRound?.issue_id) &&
+    !activeRound?.is_revealed;
   const canSkipIssue =
     isConnected &&
     currentUserIsFacilitator &&
@@ -728,6 +733,26 @@ export default function GameRoomPage() {
     skipIssue();
   };
 
+  const handleRevote = () => {
+    if (!activeRound?.issue_id || !activeIssue) {
+      setActionError("Start voting an issue before requesting a revote");
+      return;
+    }
+
+    if (!currentUserIsFacilitator) {
+      setActionError("Only the facilitator can initiate a revote");
+      return;
+    }
+
+    if (activeRound.is_revealed) {
+      setActionError("Cannot revote after cards have been revealed");
+      return;
+    }
+
+    setActionError(null);
+    revote();
+  };
+
   const handlePickNextIssue = () => {
     if (!isConnected) {
       setActionError("Connect to the game before starting a vote");
@@ -916,6 +941,7 @@ export default function GameRoomPage() {
             autoReveal={gameState.game.auto_reveal}
             canPickCards={canPickCards}
             canRevealCards={canRevealCards}
+            canRevote={canRevote}
             canSkipIssue={canSkipIssue}
             countdownNumber={countdownNumber}
             currentUserCanVote={currentUserCanVote}
@@ -944,6 +970,7 @@ export default function GameRoomPage() {
             }}
             onPickNextIssue={handlePickNextIssue}
             onRevealCards={handleRevealCards}
+            onRevote={handleRevote}
             onSaveEstimate={handleSaveEstimate}
             onSetSpectatorMode={setSpectatorMode}
             onSkipIssue={handleSkipIssue}

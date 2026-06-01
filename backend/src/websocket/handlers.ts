@@ -14,6 +14,7 @@ import {
   SubmitVotePayload,
   RevealCardsPayload,
   SkipIssuePayload,
+  RevotePayload,
   StartNewRoundPayload,
   UpdateGameSettingsPayload,
   StartTimerPayload,
@@ -36,6 +37,7 @@ import {
   calculateVotingResults,
   clearCurrentRound,
   skipVotingRound,
+  revoteRound,
   setPlayerSpectatorMode,
   setRoomFacilitator,
   startTimer,
@@ -282,10 +284,6 @@ export const registerHandlers = (io: SocketIOServer) => {
             throw new Error("Pick an issue before revealing cards");
           }
 
-          if (!haveAllPlayersVoted(gameId)) {
-            throw new Error("Wait for every non-spectator player to vote");
-          }
-
           // Check permission
           const hasPermission = await hasGamePermission(
             gameId,
@@ -374,6 +372,41 @@ export const registerHandlers = (io: SocketIOServer) => {
         }
       },
     );
+
+    /**
+     * REVOTE - Clear all votes and restart voting on the same issue
+     */
+    authSocket.on(ClientEvents.REVOTE, async (payload: RevotePayload) => {
+      try {
+        const { game_id, round_id, issue_id } = payload;
+
+        if (!game_id || !round_id || !issue_id) {
+          throw new Error("Game, round, and issue are required");
+        }
+
+        const gameState = await getRoomState(game_id);
+        if (gameState.game.facilitator_id !== userId) {
+          throw new Error("Only the facilitator can initiate a revote");
+        }
+
+        const revotedRound = revoteRound(game_id, round_id, issue_id);
+
+        io.to(game_id).emit(ServerEvents.REVOTE_STARTED, revotedRound);
+        io.to(game_id).emit(
+          ServerEvents.GAME_STATE,
+          await getRoomState(game_id),
+        );
+
+        logger.info(
+          `Revote started for issue ${issue_id} in game ${game_id} by facilitator ${userId}`,
+        );
+      } catch (error: any) {
+        logger.error("Error starting revote:", error);
+        authSocket.emit(ServerEvents.ERROR, {
+          message: error.message || "Failed to start revote",
+        });
+      }
+    });
 
     /**
      * START_NEW_ROUND - Start a new voting round

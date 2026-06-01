@@ -5,6 +5,7 @@ import {
   CircleDot,
   Eye,
   EyeOff,
+  RotateCcw,
   SkipForward,
   Users,
 } from "lucide-react";
@@ -21,6 +22,7 @@ interface GameTableProps {
   autoReveal: boolean;
   canPickCards: boolean;
   canRevealCards: boolean;
+  canRevote: boolean;
   canSkipIssue: boolean;
   currentUserCanVote: boolean;
   currentUserId: string | null;
@@ -46,6 +48,7 @@ interface GameTableProps {
   onCustomEstimateChange: (value: string) => void;
   onPickNextIssue: () => void;
   onRevealCards: () => void;
+  onRevote: () => void;
   onSaveEstimate: () => void;
   onSetSpectatorMode: (isSpectator: boolean, targetUserId?: string) => void;
   onSkipIssue: () => void;
@@ -114,6 +117,7 @@ export default function GameTable({
   autoReveal,
   canPickCards,
   canRevealCards,
+  canRevote,
   canSkipIssue,
   countdownNumber,
   currentUserCanVote,
@@ -132,6 +136,7 @@ export default function GameTable({
   onCustomEstimateChange,
   onPickNextIssue,
   onRevealCards,
+  onRevote,
   onSaveEstimate,
   onSetSpectatorMode,
   onSkipIssue,
@@ -306,7 +311,7 @@ export default function GameTable({
                 >
                   {statusDescription}
                 </p>
-                {(canRevealCards || canSkipIssue) && (
+                {(canRevealCards || canRevote || canSkipIssue) && (
                   <div className="mt-4 flex flex-wrap justify-center gap-2">
                     {canRevealCards && (
                       <Button
@@ -315,6 +320,17 @@ export default function GameTable({
                         className="inline-flex max-w-full justify-center whitespace-nowrap"
                       >
                         Reveal cards
+                      </Button>
+                    )}
+                    {canRevote && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={onRevote}
+                        className="inline-flex max-w-full justify-center whitespace-nowrap"
+                      >
+                        <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                        Revote
                       </Button>
                     )}
                     {canSkipIssue && (

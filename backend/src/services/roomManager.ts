@@ -391,6 +391,47 @@ export const skipVotingRound = (
 };
 
 /**
+ * Revote - Clear all votes for the current round and restart voting on the same issue
+ */
+export const revoteRound = (
+  gameId: string,
+  roundId: string,
+  issueId: string,
+): { round_id: string; issue_id: string } => {
+  const room = rooms.get(gameId);
+  if (!room || !room.current_round || !room.current_round.issue_id) {
+    throw new Error("No active voting round to revote");
+  }
+
+  if (room.current_round.id !== roundId) {
+    throw new Error("This voting round is no longer active");
+  }
+
+  if (room.current_round.issue_id !== issueId) {
+    throw new Error("Issue mismatch for revote");
+  }
+
+  if (room.current_round.is_revealed) {
+    throw new Error("Cannot revote after cards have been revealed");
+  }
+
+  // Clear all votes but keep the round active with the same issue
+  room.current_round.votes.clear();
+  room.current_round.vote_times.clear();
+  // Reset the started_at time for the new voting session
+  room.current_round.started_at = new Date();
+
+  logger.info(
+    `Voting round ${roundId} revoted for issue ${issueId} in room ${gameId}`,
+  );
+
+  return {
+    round_id: room.current_round.id,
+    issue_id: room.current_round.issue_id,
+  };
+};
+
+/**
  * Calculate voting results
  */
 export const calculateVotingResults = (gameId: string) => {

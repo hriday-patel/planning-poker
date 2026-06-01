@@ -27,6 +27,7 @@ export enum ClientEvents {
   SUBMIT_VOTE = "SUBMIT_VOTE",
   REVEAL_CARDS = "REVEAL_CARDS",
   SKIP_ISSUE = "SKIP_ISSUE",
+  REVOTE = "REVOTE",
   START_NEW_ROUND = "START_NEW_ROUND",
   UPDATE_GAME_SETTINGS = "UPDATE_GAME_SETTINGS",
   START_TIMER = "START_TIMER",
@@ -46,6 +47,7 @@ export enum ServerEvents {
   VOTE_SUBMITTED = "VOTE_SUBMITTED",
   CARDS_REVEALED = "CARDS_REVEALED",
   ISSUE_SKIPPED = "ISSUE_SKIPPED",
+  REVOTE_STARTED = "REVOTE_STARTED",
   NEW_ROUND_STARTED = "NEW_ROUND_STARTED",
   GAME_SETTINGS_UPDATED = "GAME_SETTINGS_UPDATED",
   TIMER_TICK = "TIMER_TICK",
@@ -486,6 +488,29 @@ export function useGameSocket(options: UseGameSocketOptions) {
       );
 
       socket.on(
+        ServerEvents.REVOTE_STARTED,
+        ({ round_id, issue_id }: { round_id: string; issue_id: string }) => {
+          logger.log("Revote started:", issue_id);
+          updateGameState((prev) => {
+            if (!prev || !prev.current_round) return prev;
+            return {
+              ...prev,
+              current_round: {
+                ...prev.current_round,
+                votes: {},
+                is_revealed: false,
+              },
+              players: prev.players.map((player) => ({
+                ...player,
+                has_voted: false,
+              })),
+            };
+          });
+          callbacksRef.current.onRevoteStarted?.(round_id, issue_id);
+        },
+      );
+
+      socket.on(
         ServerEvents.NEW_ROUND_STARTED,
         ({
           round_id,
@@ -680,6 +705,22 @@ export function useGameSocket(options: UseGameSocketOptions) {
     });
   }, [socket, gameState, gameId]);
 
+  const revote = useCallback(() => {
+    if (!socket) {
+      console.error("Cannot revote: socket not ready");
+      return;
+    }
+    if (!gameState?.current_round?.id || !gameState?.current_round?.issue_id) {
+      console.error("Cannot revote: no active round");
+      return;
+    }
+    socket.emit(ClientEvents.REVOTE, {
+      game_id: gameId,
+      round_id: gameState.current_round.id,
+      issue_id: gameState.current_round.issue_id,
+    });
+  }, [socket, gameState, gameId]);
+
   const startNewRound = useCallback(
     (issueId?: string) => {
       if (!socket) {
@@ -855,6 +896,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
     // Actions
     submitVote,
     revealCards,
+    revote,
     skipIssue,
     startNewRound,
     updateGameSettings,

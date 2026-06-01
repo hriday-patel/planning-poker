@@ -51,6 +51,9 @@ export default function JiraImportModal({
   const [duplicateAction, setDuplicateAction] =
     useState<JiraDuplicateAction>("skip");
   const [error, setError] = useState<string | null>(null);
+  const [enabledIssueTypes, setEnabledIssueTypes] = useState<Set<string>>(
+    new Set(),
+  );
 
   useEffect(() => {
     if (!isOpen) {
@@ -59,12 +62,68 @@ export default function JiraImportModal({
       setSelectedKeys(new Set());
       setDuplicateAction("skip");
       setError(null);
+      setEnabledIssueTypes(new Set());
     }
   }, [isOpen]);
 
+  // Get all unique issue types from candidates
+  const issueTypes = useMemo(() => {
+    const types = new Set<string>();
+    candidates.forEach((candidate) => {
+      if (candidate.issueType) {
+        types.add(candidate.issueType);
+      }
+    });
+    return Array.from(types).sort();
+  }, [candidates]);
+
+  // Group candidates by issue type
+  const groupedCandidates = useMemo(() => {
+    const groups = new Map<string, JiraImportCandidate[]>();
+    
+    candidates.forEach((candidate) => {
+      const type = candidate.issueType || "Other";
+      if (!groups.has(type)) {
+        groups.set(type, []);
+      }
+      groups.get(type)!.push(candidate);
+    });
+
+    // Sort groups by issue type name
+    return new Map(
+      Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b)),
+    );
+  }, [candidates]);
+
+  // Filter candidates based on enabled issue types
+  const filteredCandidates = useMemo(() => {
+    if (enabledIssueTypes.size === 0) {
+      return candidates;
+    }
+    return candidates.filter((candidate) =>
+      enabledIssueTypes.has(candidate.issueType || "Other"),
+    );
+  }, [candidates, enabledIssueTypes]);
+
+  // Filter grouped candidates based on enabled issue types
+  const filteredGroupedCandidates = useMemo(() => {
+    if (enabledIssueTypes.size === 0) {
+      return groupedCandidates;
+    }
+    const filtered = new Map<string, JiraImportCandidate[]>();
+    groupedCandidates.forEach((issues, type) => {
+      if (enabledIssueTypes.has(type)) {
+        filtered.set(type, issues);
+      }
+    });
+    return filtered;
+  }, [groupedCandidates, enabledIssueTypes]);
+
   const selectedCandidates = useMemo(() => {
-    return candidates.filter((candidate) => selectedKeys.has(candidate.key));
-  }, [candidates, selectedKeys]);
+    return filteredCandidates.filter((candidate) =>
+      selectedKeys.has(candidate.key),
+    );
+  }, [filteredCandidates, selectedKeys]);
 
   const importCandidates = useMemo(() => {
     if (duplicateAction === "include") {
@@ -74,7 +133,7 @@ export default function JiraImportModal({
     return selectedCandidates.filter((candidate) => !candidate.isDuplicate);
   }, [duplicateAction, selectedCandidates]);
 
-  const duplicateCount = candidates.filter(
+  const duplicateCount = filteredCandidates.filter(
     (candidate) => candidate.isDuplicate,
   ).length;
   const formIsComplete = Boolean(
@@ -91,6 +150,16 @@ export default function JiraImportModal({
     try {
       const preview = await onPreview(credentials);
       setCandidates(preview.candidates);
+      
+      // Enable all issue types by default
+      const types = new Set<string>();
+      preview.candidates.forEach((candidate) => {
+        if (candidate.issueType) {
+          types.add(candidate.issueType);
+        }
+      });
+      setEnabledIssueTypes(types);
+      
       setSelectedKeys(
         new Set(
           preview.candidates
@@ -102,6 +171,7 @@ export default function JiraImportModal({
     } catch (previewError: any) {
       setCandidates([]);
       setSelectedKeys(new Set());
+      setEnabledIssueTypes(new Set());
       setError(previewError.message || "Failed to preview Jira sprint");
     }
   };
@@ -112,7 +182,7 @@ export default function JiraImportModal({
     if (nextAction === "skip") {
       setSelectedKeys(
         new Set(
-          candidates
+          filteredCandidates
             .filter(
               (candidate) =>
                 selectedKeys.has(candidate.key) && !candidate.isDuplicate,
@@ -121,6 +191,64 @@ export default function JiraImportModal({
         ),
       );
     }
+  };
+
+  const handleToggleIssueType = (issueType: string) => {
+    setEnabledIssueTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(issueType)) {
+        next.delete(issueType);
+        // Deselect all issues of this type
+        const issuesOfType = candidates
+          .filter((c) => (c.issueType || "Other") === issueType)
+          .map((c) => c.key);
+        setSelectedKeys((prevKeys) => {
+          const nextKeys = new Set(prevKeys);
+          issuesOfType.forEach((key) => nextKeys.delete(key));
+          return nextKeys;
+        });
+      } else {
+        next.add(issueType);
+        // Auto-select non-duplicate issues of this type
+        const issuesOfType = candidates
+          .filter(
+            (c) =>
+              (c.issueType || "Other") === issueType &&
+              (duplicateAction === "include" || !c.isDuplicate),
+          )
+          .map((c) => c.key);
+        setSelectedKeys((prevKeys) => {
+          const nextKeys = new Set(prevKeys);
+          issuesOfType.forEach((key) => nextKeys.add(key));
+          return nextKeys;
+        });
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllInGroup = (issueType: string) => {
+    const issuesInGroup = candidates.filter(
+      (c) =>
+        (c.issueType || "Other") === issueType &&
+        (duplicateAction === "include" || !c.isDuplicate),
+    );
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      issuesInGroup.forEach((issue) => next.add(issue.key));
+      return next;
+    });
+  };
+
+  const handleDeselectAllInGroup = (issueType: string) => {
+    const issuesInGroup = candidates.filter(
+      (c) => (c.issueType || "Other") === issueType,
+    );
+    setSelectedKeys((prev) => {
+      const next = new Set(prev);
+      issuesInGroup.forEach((issue) => next.delete(issue.key));
+      return next;
+    });
   };
 
   const handleToggleCandidate = (candidate: JiraImportCandidate) => {
@@ -238,7 +366,7 @@ export default function JiraImportModal({
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="info">{candidates.length} found</Badge>
+                <Badge variant="info">{filteredCandidates.length} found</Badge>
                 {duplicateCount > 0 && (
                   <Badge variant="warning">{duplicateCount} duplicates</Badge>
                 )}
@@ -276,58 +404,181 @@ export default function JiraImportModal({
               )}
             </div>
 
+            {/* Issue Type Filters */}
+            {issueTypes.length > 0 && (
+              <div
+                className="rounded-lg border p-3"
+                style={{
+                  backgroundColor: "var(--surface-secondary)",
+                  borderColor: "var(--border-color)",
+                }}
+              >
+                <div className="mb-2 text-sm font-medium">Filter by type:</div>
+                <div className="flex flex-wrap gap-2">
+                  {issueTypes.map((issueType) => {
+                    const typeCount = groupedCandidates.get(issueType)?.length || 0;
+                    const isEnabled = enabledIssueTypes.has(issueType);
+                    
+                    return (
+                      <label
+                        key={issueType}
+                        className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 transition-colors"
+                        style={{
+                          backgroundColor: isEnabled
+                            ? "var(--primary-color)"
+                            : "var(--surface-primary)",
+                          borderColor: isEnabled
+                            ? "var(--primary-color)"
+                            : "var(--border-color)",
+                          color: isEnabled
+                            ? "var(--primary-contrast)"
+                            : "var(--text-primary)",
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={isEnabled}
+                          onChange={() => handleToggleIssueType(issueType)}
+                        />
+                        <span className="text-sm font-medium">
+                          {issueType} ({typeCount})
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Grouped Issues List */}
             <div
-              className="max-h-80 space-y-2 overflow-y-auto rounded-lg border p-2"
+              className="max-h-80 space-y-3 overflow-y-auto rounded-lg border p-2"
               style={{ borderColor: "var(--border-color)" }}
             >
-              {candidates.map((candidate) => {
-                const disabled =
-                  candidate.isDuplicate && duplicateAction === "skip";
-                const checked = selectedKeys.has(candidate.key) && !disabled;
+              {filteredGroupedCandidates.size === 0 ? (
+                <div
+                  className="rounded-lg p-4 text-center text-sm"
+                  style={{ color: "var(--text-tertiary)" }}
+                >
+                  No issues match the selected filters
+                </div>
+              ) : (
+                Array.from(filteredGroupedCandidates.entries()).map(
+                  ([issueType, issues]) => {
+                    const selectedInGroup = issues.filter((issue) =>
+                      selectedKeys.has(issue.key),
+                    ).length;
+                    const selectableInGroup = issues.filter(
+                      (issue) =>
+                        duplicateAction === "include" || !issue.isDuplicate,
+                    ).length;
 
-                return (
-                  <label
-                    key={candidate.key}
-                    className="flex cursor-pointer items-start gap-3 rounded-lg border p-3"
-                    style={{
-                      backgroundColor: "var(--surface-secondary)",
-                      borderColor: "var(--border-subtle)",
-                      opacity: disabled ? 0.62 : 1,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-4 w-4"
-                      checked={checked}
-                      disabled={disabled}
-                      onChange={() => handleToggleCandidate(candidate)}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="mb-1 flex flex-wrap items-center gap-2">
-                        <Badge
-                          variant={candidate.isDuplicate ? "warning" : "info"}
+                    return (
+                      <div key={issueType} className="space-y-2">
+                        {/* Group Header */}
+                        <div
+                          className="sticky top-0 z-10 flex items-center justify-between rounded-lg border px-3 py-2"
+                          style={{
+                            backgroundColor: "var(--surface-primary)",
+                            borderColor: "var(--border-color)",
+                          }}
                         >
-                          {candidate.key}
-                        </Badge>
-                        {candidate.issueType && (
-                          <Badge variant="neutral">{candidate.issueType}</Badge>
-                        )}
-                        {candidate.status && (
-                          <span
-                            className="text-xs"
-                            style={{ color: "var(--text-tertiary)" }}
-                          >
-                            {candidate.status}
-                          </span>
-                        )}
-                      </span>
-                      <span className="block text-sm font-medium leading-5">
-                        {candidate.title}
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold">
+                              {issueType}
+                            </span>
+                            <Badge variant="neutral">
+                              {selectedInGroup}/{issues.length}
+                            </Badge>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => handleSelectAllInGroup(issueType)}
+                              disabled={selectedInGroup === selectableInGroup}
+                            >
+                              Select all
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                handleDeselectAllInGroup(issueType)
+                              }
+                              disabled={selectedInGroup === 0}
+                            >
+                              Deselect all
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Issues in Group */}
+                        <div className="space-y-2 pl-2">
+                          {issues.map((candidate) => {
+                            const disabled =
+                              candidate.isDuplicate &&
+                              duplicateAction === "skip";
+                            const checked =
+                              selectedKeys.has(candidate.key) && !disabled;
+
+                            return (
+                              <label
+                                key={candidate.key}
+                                className="flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+                                style={{
+                                  backgroundColor: "var(--surface-secondary)",
+                                  borderColor: "var(--border-subtle)",
+                                  opacity: disabled ? 0.62 : 1,
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="mt-1 h-4 w-4"
+                                  checked={checked}
+                                  disabled={disabled}
+                                  onChange={() =>
+                                    handleToggleCandidate(candidate)
+                                  }
+                                />
+                                <span className="min-w-0 flex-1">
+                                  <span className="mb-1 flex flex-wrap items-center gap-2">
+                                    <Badge
+                                      variant={
+                                        candidate.isDuplicate
+                                          ? "warning"
+                                          : "info"
+                                      }
+                                    >
+                                      {candidate.key}
+                                    </Badge>
+                                    {candidate.status && (
+                                      <span
+                                        className="text-xs"
+                                        style={{
+                                          color: "var(--text-tertiary)",
+                                        }}
+                                      >
+                                        {candidate.status}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="block text-sm font-medium leading-5">
+                                    {candidate.title}
+                                  </span>
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  },
+                )
+              )}
             </div>
           </div>
         )}
