@@ -9,6 +9,40 @@ interface VotingDeckProps {
   onCardSelect: (value: string) => void;
 }
 
+/**
+ * Sort deck values: numeric values in ascending order, then special characters
+ */
+const sortDeckValues = (values: string[]): string[] => {
+  const numeric: { value: string; num: number }[] = [];
+  const special: string[] = [];
+
+  values.forEach((value) => {
+    const num = parseFloat(value);
+    if (!isNaN(num) && value.trim() === num.toString()) {
+      numeric.push({ value, num });
+    } else {
+      special.push(value);
+    }
+  });
+
+  // Sort numeric values by their numeric value
+  numeric.sort((a, b) => a.num - b.num);
+
+  // Combine: numeric first, then special characters
+  return [...numeric.map((item) => item.value), ...special];
+};
+
+/**
+ * Format deck name for display
+ */
+const formatDeckName = (name: string): string => {
+  // Check if it's a custom deck with generated name pattern (e.g., "Custom-guest_xxx-timestamp")
+  if (name.startsWith("Custom-")) {
+    return "Custom Deck";
+  }
+  return name;
+};
+
 export default function VotingDeck({
   canPickCards,
   deckName,
@@ -17,7 +51,9 @@ export default function VotingDeck({
   onCardSelect,
   selectedCard,
 }: VotingDeckProps) {
-  const cardCount = Math.max(deckValues.length, 1);
+  const sortedDeckValues = sortDeckValues(deckValues);
+  const displayDeckName = formatDeckName(deckName);
+  const cardCount = Math.max(sortedDeckValues.length, 1);
   const isLargeDeck = cardCount > 10;
   const isDenseDeck = cardCount > 13;
   const deckGapClass = isDenseDeck
@@ -59,7 +95,7 @@ export default function VotingDeck({
           Choose your card
         </h2>
         <span className="text-xs" style={{ color: "var(--text-tertiary)" }}>
-          {deckName}
+          {displayDeckName}
         </span>
       </div>
       <div
@@ -67,7 +103,7 @@ export default function VotingDeck({
         role="list"
         style={{ gridTemplateColumns: `repeat(${cardCount}, minmax(0, 1fr))` }}
       >
-        {deckValues.map((value) => (
+        {sortedDeckValues.map((value) => (
           <div
             key={value}
             role="listitem"

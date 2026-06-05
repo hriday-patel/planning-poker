@@ -353,7 +353,7 @@ export default function IssuesPanel({
                       >
                         Estimate:{" "}
                         <span className="font-semibold">
-                          {issue.final_estimate || "No consensus"}
+                          {issue.final_estimate || " —"}
                         </span>
                       </div>
                     )}

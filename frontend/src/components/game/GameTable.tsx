@@ -45,11 +45,10 @@ interface GameTableProps {
   votingPhase: VotingPhase;
   votingResults: VotingResults | null;
   onCardSelect: (value: string) => void;
-  onCustomEstimateChange: (value: string) => void;
+  onChangeEstimateClick: () => void;
   onPickNextIssue: () => void;
   onRevealCards: () => void;
   onRevote: () => void;
-  onSaveEstimate: () => void;
   onSetSpectatorMode: (isSpectator: boolean, targetUserId?: string) => void;
   onSkipIssue: () => void;
 }
@@ -133,11 +132,10 @@ export default function GameTable({
   isIssuesPanelOpen,
   issueTotal,
   onCardSelect,
-  onCustomEstimateChange,
+  onChangeEstimateClick,
   onPickNextIssue,
   onRevealCards,
   onRevote,
-  onSaveEstimate,
   onSetSpectatorMode,
   onSkipIssue,
   players,
@@ -522,9 +520,8 @@ export default function GameTable({
               isIssuesPanelOpen={isIssuesPanelOpen}
               showAverage={showAverage}
               votingResults={votingResults}
-              onCustomEstimateChange={onCustomEstimateChange}
+              onChangeEstimateClick={onChangeEstimateClick}
               onPickNextIssue={onPickNextIssue}
-              onSaveEstimate={onSaveEstimate}
             />
           </div>
         ) : null}

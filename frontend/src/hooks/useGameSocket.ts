@@ -506,7 +506,8 @@ export function useGameSocket(options: UseGameSocketOptions) {
               })),
             };
           });
-          callbacksRef.current.onRevoteStarted?.(round_id, issue_id);
+          // Revote started - trigger callback to clear selected card
+          callbacksRef.current.onNewRound?.(round_id, issue_id);
         },
       );
 

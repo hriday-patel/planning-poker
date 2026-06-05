@@ -72,11 +72,17 @@ export const addPlayerToRoom = async (
 
   const isFacilitator = game.facilitator_id === userId;
   const existingPlayer = room.players.get(userId);
-  const isRoundObserver = Boolean(
+
+  // Allow mid-round joining: users can vote immediately if they join during an active round
+  // Add them to eligible voters if round is active and not revealed
+  if (
     room.current_round &&
     !room.current_round.is_revealed &&
-    !room.current_round.eligible_voter_ids.has(userId),
-  );
+    !user.spectator_mode &&
+    !room.current_round.eligible_voter_ids.has(userId)
+  ) {
+    room.current_round.eligible_voter_ids.add(userId);
+  }
 
   // Add or update player in room
   room.players.set(userId, {
@@ -86,10 +92,8 @@ export const addPlayerToRoom = async (
     avatar_url: user.avatar_url || null,
     is_facilitator: isFacilitator,
     is_spectator: existingPlayer?.is_spectator ?? user.spectator_mode,
-    is_round_observer: existingPlayer?.is_round_observer ?? isRoundObserver,
-    observer_reason:
-      existingPlayer?.observer_reason ??
-      (isRoundObserver ? "joined_mid_round" : null),
+    is_round_observer: false, // No longer mark as observer for mid-round joins
+    observer_reason: null,
     joined_at: existingPlayer?.joined_at ?? new Date(),
   });
 
@@ -214,12 +218,17 @@ export const setPlayerSpectatorMode = (
 
   if (room.current_round && !room.current_round.is_revealed) {
     if (isSpectator) {
+      // Becoming spectator: remove from eligible voters and clear vote
       clearPlayerRoundVote(room, userId);
       player.is_round_observer = false;
       player.observer_reason = null;
-    } else if (!room.current_round.eligible_voter_ids.has(userId)) {
-      player.is_round_observer = true;
-      player.observer_reason = player.observer_reason || "next_round";
+    } else {
+      // Becoming voter: add to eligible voters immediately if round is active
+      if (!room.current_round.eligible_voter_ids.has(userId)) {
+        room.current_round.eligible_voter_ids.add(userId);
+      }
+      player.is_round_observer = false;
+      player.observer_reason = null;
     }
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { BarChart3, Check } from "lucide-react";
+import { BarChart3, Edit3 } from "lucide-react";
 import type { Issue } from "@/types/game.types";
 import type { VotingResults } from "@/hooks/useGameSocket";
 import { Button } from "@/components/ui";
@@ -14,9 +14,8 @@ interface VotingResultsPanelProps {
   isIssuesPanelOpen: boolean;
   showAverage: boolean;
   votingResults: VotingResults;
-  onCustomEstimateChange: (value: string) => void;
+  onChangeEstimateClick: () => void;
   onPickNextIssue: () => void;
-  onSaveEstimate: () => void;
 }
 
 const clampPercentage = (value: number) => Math.min(100, Math.max(0, value));
@@ -116,9 +115,8 @@ export default function VotingResultsPanel({
   displayedEstimate,
   estimateStatus,
   isIssuesPanelOpen,
-  onCustomEstimateChange,
+  onChangeEstimateClick,
   onPickNextIssue,
-  onSaveEstimate,
   showAverage,
   votingResults,
 }: VotingResultsPanelProps) {
@@ -276,58 +274,48 @@ export default function VotingResultsPanel({
           </Button>
 
           {currentUserIsFacilitator && activeIssue && (
-            <div className="min-w-0">
+            <div className="flex min-w-0 flex-col gap-2">
               <label
-                htmlFor="facilitator-estimate"
-                className="mb-1 block text-[10px] font-medium"
+                className="block text-[10px] font-medium"
                 style={{ color: "var(--text-tertiary)" }}
               >
                 Facilitator estimate
               </label>
-              <div className="flex items-center gap-2">
-                <input
-                  id="facilitator-estimate"
-                  value={customEstimate}
-                  onChange={(event) =>
-                    onCustomEstimateChange(
-                      event.target.value.replace(/\D/g, "").slice(0, 4),
-                    )
-                  }
-                  placeholder={votingResults.final_estimate || "Auto"}
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={4}
-                  aria-label="Estimate"
-                  className="h-9 w-14 flex-none rounded-lg border px-2 py-1 text-center text-sm tabular-nums outline-none transition-colors placeholder:text-theme-tertiary focus:border-(--primary) focus:ring-2 focus:ring-(--primary) disabled:cursor-not-allowed disabled:opacity-60"
-                  style={{
-                    backgroundColor: "var(--surface-secondary)",
-                    borderColor: "var(--border-color)",
-                    color: "var(--text-primary)",
-                  }}
-                />
-                <Button
-                  type="button"
-                  onClick={onSaveEstimate}
-                  size="sm"
-                  className="h-9 flex-1 justify-center px-3"
-                >
-                  {isEstimateSaved ? (
-                    <>
-                      <Check className="h-4 w-4" aria-hidden="true" />
-                      Saved
-                    </>
-                  ) : (
-                    "Save"
-                  )}
-                </Button>
-              </div>
-              <span
-                className="mt-1 block text-[10px] font-medium leading-4"
-                style={{ color: "var(--text-tertiary)" }}
-                aria-live="polite"
+
+              {/* Read-only Estimate Display Field */}
+              <div
+                className="flex h-9 w-full items-center justify-center rounded-md border px-3 text-sm font-semibold"
+                style={{
+                  backgroundColor: "var(--surface-secondary)",
+                  borderColor: "var(--border-color)",
+                  color: "var(--text-primary)",
+                }}
+                aria-label="Current estimate"
               >
-                {estimateStatus || "Empty uses the calculated estimate."}
-              </span>
+                {customEstimate || displayedEstimate || "Not set"}
+              </div>
+
+              {/* Change Estimate Button */}
+              <Button
+                type="button"
+                onClick={onChangeEstimateClick}
+                size="sm"
+                variant="secondary"
+                className="w-full justify-center"
+              >
+                <Edit3 className="h-4 w-4" aria-hidden="true" />
+                Change Estimate
+              </Button>
+
+              {estimateStatus && (
+                <span
+                  className="block text-[10px] font-medium leading-4"
+                  style={{ color: "var(--text-tertiary)" }}
+                  aria-live="polite"
+                >
+                  {estimateStatus}
+                </span>
+              )}
             </div>
           )}
         </div>

@@ -22,6 +22,7 @@ import VotingHistory from "@/components/VotingHistory";
 import GameSettingsModal from "@/components/GameSettingsModal";
 import GuestModeModal from "@/components/GuestModeModal";
 import JiraImportModal from "@/components/JiraImportModal";
+import ChangeEstimateModal from "@/components/ChangeEstimateModal";
 import GameTable from "@/components/game/GameTable";
 import GameTopBar from "@/components/game/GameTopBar";
 import IssuesPanel from "@/components/game/IssuesPanel";
@@ -81,6 +82,7 @@ export default function GameRoomPage() {
   const [showJiraImportModal, setShowJiraImportModal] = useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showGameDropdown, setShowGameDropdown] = useState(false);
+  const [showChangeEstimateModal, setShowChangeEstimateModal] = useState(false);
   const [votingResults, setVotingResults] = useState<VotingResults | null>(
     null,
   );
@@ -99,7 +101,11 @@ export default function GameRoomPage() {
   const [isImportingIssues, setIsImportingIssues] = useState(false);
   const [isImportingJira, setIsImportingJira] = useState(false);
   const [customEstimate, setCustomEstimate] = useState("");
+  const [pendingEstimate, setPendingEstimate] = useState("");
   const [estimateStatus, setEstimateStatus] = useState<string | null>(null);
+  const [originalCalculatedEstimate, setOriginalCalculatedEstimate] = useState<
+    string | null
+  >(null);
   const lastRevealedRoundKeyRef = useRef<string | null>(null);
   const [selectedLeaveFacilitator, setSelectedLeaveFacilitator] = useState("");
   const [leaveError, setLeaveError] = useState<string | null>(null);
@@ -170,6 +176,9 @@ export default function GameRoomPage() {
       console.log("Cards revealed:", results);
       setActionError(null);
 
+      // Store the original calculated estimate (never overwrite this)
+      setOriginalCalculatedEstimate(results.final_estimate || null);
+
       if (!gameState.game?.show_countdown) {
         setVotingResults(results);
         return;
@@ -199,6 +208,7 @@ export default function GameRoomPage() {
       setCustomEstimate("");
       setEstimateStatus(null);
       setActionError(null);
+      setOriginalCalculatedEstimate(null);
       setGameState((prev) => ({
         ...prev,
         currentIssue: null,
@@ -210,6 +220,7 @@ export default function GameRoomPage() {
       setLastIssueAnchorId(issueId);
       setVotingResults(null);
       setActionError(null);
+      setOriginalCalculatedEstimate(null);
       setGameState((prev) => ({
         ...prev,
         currentIssue: prev.issues.find((issue) => issue.id === issueId) || null,
@@ -344,8 +355,9 @@ export default function GameRoomPage() {
     Boolean(activeRound?.issue_id) &&
     !activeRound?.is_revealed &&
     !allPlayersVoted;
-  const displayedEstimate =
-    activeIssue?.final_estimate || votingResults?.final_estimate || null;
+  const displayedEstimate = showCountdown
+    ? null
+    : activeIssue?.final_estimate || votingResults?.final_estimate || null;
   const timerRemaining = wsGameState?.timer?.remaining_seconds ?? null;
   const timerRunning = wsGameState?.timer?.is_running ?? false;
   const otherPlayers = useMemo(
@@ -692,11 +704,6 @@ export default function GameRoomPage() {
   };
 
   const handleRevealCards = () => {
-    if (!allPlayersVoted) {
-      setActionError("Wait for every eligible player to vote");
-      return;
-    }
-
     if (!currentUserCanReveal) {
       setActionError("You don't have permission to reveal cards");
       return;
@@ -793,13 +800,23 @@ export default function GameRoomPage() {
     startNewRound(nextPendingIssue.id);
   };
 
+  const handleSelectEstimate = (estimate: string) => {
+    // Update pending estimate when user selects from modal
+    setPendingEstimate(estimate);
+    setEstimateStatus(null);
+  };
+
   const handleSaveEstimate = () => {
-    if (!currentUserIsFacilitator || !activeIssue || !votingResults) {
+    if (
+      !currentUserIsFacilitator ||
+      !activeIssue ||
+      !votingResults ||
+      !pendingEstimate
+    ) {
       return;
     }
 
-    const nextEstimate =
-      customEstimate.trim() || votingResults.final_estimate || null;
+    const nextEstimate = pendingEstimate || null;
 
     updateIssue({
       id: activeIssue.id,
@@ -812,6 +829,8 @@ export default function GameRoomPage() {
     setVotingResults((prev) =>
       prev ? { ...prev, final_estimate: nextEstimate } : prev,
     );
+    setCustomEstimate(pendingEstimate);
+    setPendingEstimate("");
     setEstimateStatus("Estimate saved");
     setActionError(null);
   };
@@ -964,14 +983,10 @@ export default function GameRoomPage() {
             votingPhase={gameState.votingPhase}
             votingResults={votingResults}
             onCardSelect={handleCardSelect}
-            onCustomEstimateChange={(value: string) => {
-              setCustomEstimate(value);
-              setEstimateStatus(null);
-            }}
+            onChangeEstimateClick={() => setShowChangeEstimateModal(true)}
             onPickNextIssue={handlePickNextIssue}
             onRevealCards={handleRevealCards}
             onRevote={handleRevote}
-            onSaveEstimate={handleSaveEstimate}
             onSetSpectatorMode={setSpectatorMode}
             onSkipIssue={handleSkipIssue}
           />
@@ -987,10 +1002,20 @@ export default function GameRoomPage() {
             isConnected={isConnected}
             isRoundInProgress={Boolean(activeRound && !activeRound.is_revealed)}
             issueCounts={issueCounts}
-            issues={gameState.issues}
+            issues={
+              showCountdown
+                ? gameState.issues.map((issue) =>
+                    issue.id === activeIssue?.id
+                      ? { ...issue, final_estimate: null }
+                      : issue,
+                  )
+                : gameState.issues
+            }
             newIssueTitle={newIssueTitle}
             revealedIssueId={
-              votingResults && gameState.votingPhase === VotingPhase.REVEALED
+              votingResults &&
+              gameState.votingPhase === VotingPhase.REVEALED &&
+              !showCountdown
                 ? activeIssue?.id
                 : null
             }
@@ -1168,6 +1193,18 @@ export default function GameRoomPage() {
           </Button>
         </ModalFooter>
       </ModalShell>
+
+      <ChangeEstimateModal
+        isOpen={showChangeEstimateModal}
+        deckName={gameState.game.deck.name}
+        deckValues={gameState.game.deck.values}
+        currentEstimate={pendingEstimate || customEstimate}
+        calculatedEstimate={originalCalculatedEstimate}
+        onClose={() => setShowChangeEstimateModal(false)}
+        onSelectEstimate={handleSelectEstimate}
+        onSaveEstimate={handleSaveEstimate}
+        hasUnsavedEstimate={Boolean(pendingEstimate)}
+      />
 
       <VotingHistory
         gameId={gameId}
