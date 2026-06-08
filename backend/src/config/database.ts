@@ -82,7 +82,7 @@ export const db = new Pool({
   connectionTimeoutMillis: 2000,
 });
 
-db.on("error", (err) => {
+db.on("error", (err: Error) => {
   logger.error("Unexpected database error:", err);
 });
 
