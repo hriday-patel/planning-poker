@@ -137,6 +137,75 @@ export interface VotingResults {
   slowest_voter?: VotingSpeedStat | null;
 }
 
+const parseCardValue = (value: string): number | null => {
+  if (value === "½") return 0.5;
+  if (value === "¼") return 0.25;
+
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+};
+
+export function buildVotingResultsFromRevealedRound(
+  round: VotingRound,
+  finalEstimate: string | null = null,
+): VotingResults {
+  const votes = Object.entries(round.votes)
+    .filter(([, cardValue]) => Boolean(cardValue))
+    .map(([user_id, card_value]) => ({
+      user_id,
+      card_value,
+    }));
+
+  const distribution = votes.reduce<Record<string, number>>((allVotes, vote) => {
+    allVotes[vote.card_value] = (allVotes[vote.card_value] || 0) + 1;
+    return allVotes;
+  }, {});
+
+  const numericVotes = votes
+    .map((vote) => parseCardValue(vote.card_value))
+    .filter((value): value is number => value !== null);
+
+  let average: number | null = null;
+  if (numericVotes.length > 0) {
+    const sum = numericVotes.reduce((total, value) => total + value, 0);
+    average = Math.round((sum / numericVotes.length) * 10) / 10;
+  }
+
+  let agreement = 0;
+  if (votes.length > 0) {
+    const maxCount = Math.max(...Object.values(distribution));
+    agreement = Math.round((maxCount / votes.length) * 100);
+  }
+
+  const sortedVoteCounts = Object.entries(distribution).sort(
+    ([, firstCount], [, secondCount]) => secondCount - firstCount,
+  );
+  const computedFinalEstimate =
+    finalEstimate ??
+    (() => {
+      if (average !== null) {
+        return String(Math.round(average));
+      }
+
+      if (sortedVoteCounts.length === 0) {
+        return null;
+      }
+
+      return sortedVoteCounts[0][0];
+    })();
+
+  return {
+    votes,
+    distribution,
+    average,
+    agreement,
+    total_voters: votes.length,
+    final_estimate: computedFinalEstimate,
+    fastest_voter: null,
+    slowest_voter: null,
+  };
+}
+
 // Hook options
 interface UseGameSocketOptions {
   gameId: string;

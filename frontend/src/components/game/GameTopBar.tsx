@@ -11,7 +11,7 @@ import {
   Settings,
   Share2,
 } from "lucide-react";
-import ThemeToggle from "@/components/ThemeToggle";
+import HeaderProfileMenu from "@/components/HeaderProfileMenu";
 import { Button, IconButton } from "@/components/ui";
 
 interface GameTopBarProps {
@@ -222,7 +222,7 @@ export default function GameTopBar({
           >
             <ListChecks className="h-5 w-5" aria-hidden="true" />
           </IconButton>
-          <ThemeToggle />
+          <HeaderProfileMenu />
         </div>
       </div>
     </nav>

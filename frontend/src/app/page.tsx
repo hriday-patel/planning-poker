@@ -8,13 +8,11 @@ import {
   Clock3,
   Layers3,
   LockKeyhole,
-  LogIn,
   Plus,
   ShieldCheck,
   Sparkles,
   Users,
 } from "lucide-react";
-import ThemeToggle from "@/components/ThemeToggle";
 import { apiFetch } from "@/lib/api";
 import { Badge, Button, Card, PageShell } from "@/components/ui";
 
@@ -116,65 +114,6 @@ export default function Home() {
 
   return (
     <PageShell>
-      <nav
-        className="border-b"
-        style={{
-          backgroundColor: "var(--surface-primary)",
-          borderColor: "var(--border-color)",
-        }}
-      >
-        <div className="container mx-auto flex items-center justify-between gap-4 px-6 py-4">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-              style={{
-                backgroundColor: "var(--primary)",
-                color: "var(--text-on-accent)",
-              }}
-            >
-              <Layers3 className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-lg font-semibold tracking-tight">
-                Planning Poker
-              </span>
-              <span
-                className="hidden text-xs sm:block"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                IBM-ready estimation for agile teams
-              </span>
-            </span>
-          </Link>
-
-          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-            <Link
-              href="/faq"
-              className="rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:opacity-80"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              FAQs
-            </Link>
-            <ThemeToggle />
-            <Button
-              type="button"
-              size="sm"
-              onClick={() =>
-                router.push(isAuthenticated ? "/create" : "/login")
-              }
-              className="hidden sm:inline-flex"
-            >
-              {isAuthenticated ? (
-                <Plus className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <LogIn className="h-4 w-4" aria-hidden="true" />
-              )}
-              {isAuthenticated ? "Create Game" : "Sign In"}
-            </Button>
-          </div>
-        </div>
-      </nav>
-
       <main>
         <section className="container mx-auto grid items-center gap-10 px-6 pb-10 pt-10 lg:grid-cols-[1fr_0.9fr] lg:pb-12 lg:pt-14">
           <div>

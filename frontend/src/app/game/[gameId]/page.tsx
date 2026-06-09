@@ -15,7 +15,11 @@ import {
   VotingPhase,
   Player,
 } from "@/types/game.types";
-import { useGameSocket, VotingResults } from "@/hooks/useGameSocket";
+import {
+  buildVotingResultsFromRevealedRound,
+  useGameSocket,
+  VotingResults,
+} from "@/hooks/useGameSocket";
 import Timer from "@/components/Timer";
 import InviteModal from "@/components/InviteModal";
 import VotingHistory from "@/components/VotingHistory";
@@ -26,6 +30,8 @@ import ChangeEstimateModal from "@/components/ChangeEstimateModal";
 import GameTable from "@/components/game/GameTable";
 import GameTopBar from "@/components/game/GameTopBar";
 import IssuesPanel from "@/components/game/IssuesPanel";
+import StatisticsPanelBar from "@/components/game/StatisticsPanelBar";
+import VotingResultsPanel from "@/components/game/VotingResultsPanel";
 import { apiFetch } from "@/lib/api";
 import {
   Alert,
@@ -73,6 +79,7 @@ export default function GameRoomPage() {
   });
 
   const [showIssuesPanel, setShowIssuesPanel] = useState(true);
+  const [showStatisticsPanel, setShowStatisticsPanel] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showGuestJoinModal, setShowGuestJoinModal] = useState(false);
@@ -181,6 +188,7 @@ export default function GameRoomPage() {
 
       if (!gameState.game?.show_countdown) {
         setVotingResults(results);
+        setShowStatisticsPanel(true);
         return;
       }
 
@@ -196,6 +204,7 @@ export default function GameRoomPage() {
         if (nextCount <= 0) {
           window.clearInterval(countdownInterval);
           setVotingResults(results);
+          setShowStatisticsPanel(true);
           window.setTimeout(() => setShowCountdown(false), 220);
         }
       }, 700);
@@ -358,6 +367,10 @@ export default function GameRoomPage() {
   const displayedEstimate = showCountdown
     ? null
     : activeIssue?.final_estimate || votingResults?.final_estimate || null;
+  const hasRevealedResults =
+    gameState.votingPhase === VotingPhase.REVEALED &&
+    votingResults !== null &&
+    !showCountdown;
   const timerRemaining = wsGameState?.timer?.remaining_seconds ?? null;
   const timerRunning = wsGameState?.timer?.is_running ?? false;
   const otherPlayers = useMemo(
@@ -409,6 +422,28 @@ export default function GameRoomPage() {
     setCustomEstimate(displayedEstimate || "");
     setEstimateStatus(null);
   }, [activeIssue?.id, activeRound?.id, displayedEstimate, votingResults]);
+
+  useEffect(() => {
+    const round = wsGameState?.current_round;
+    if (!round?.is_revealed || showCountdown) {
+      return;
+    }
+
+    setVotingResults((previousResults) => {
+      if (previousResults) {
+        return previousResults;
+      }
+
+      return buildVotingResultsFromRevealedRound(
+        round,
+        activeIssue?.final_estimate ?? null,
+      );
+    });
+  }, [
+    activeIssue?.final_estimate,
+    showCountdown,
+    wsGameState?.current_round,
+  ]);
 
   const handleAddIssue = (event: React.FormEvent) => {
     event.preventDefault();
@@ -953,7 +988,7 @@ export default function GameRoomPage() {
             : "grid-cols-1"
         }`}
       >
-        <section className="flex h-full min-h-0 min-w-0 flex-col">
+        <section className="relative flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
           <GameTable
             activeIssue={activeIssue}
             allPlayersVoted={allPlayersVoted}
@@ -966,30 +1001,41 @@ export default function GameRoomPage() {
             currentUserCanVote={currentUserCanVote}
             currentUserId={currentUserId}
             currentUserIsFacilitator={currentUserIsFacilitator}
-            customEstimate={customEstimate}
             deckName={gameState.game.deck.name}
             deckValues={gameState.game.deck.values}
-            displayedEstimate={displayedEstimate}
             eligiblePlayerCount={eligiblePlayers.length}
-            estimateStatus={estimateStatus}
             isConnected={isConnected}
-            isIssuesPanelOpen={showIssuesPanel}
             issueTotal={issueCounts.total}
             players={gameState.players}
             selectedCard={gameState.selectedCard}
-            showAverage={gameState.game.show_average}
             showCountdown={showCountdown}
             votedCount={votedCount}
             votingPhase={gameState.votingPhase}
             votingResults={votingResults}
             onCardSelect={handleCardSelect}
-            onChangeEstimateClick={() => setShowChangeEstimateModal(true)}
-            onPickNextIssue={handlePickNextIssue}
             onRevealCards={handleRevealCards}
             onRevote={handleRevote}
             onSetSpectatorMode={setSpectatorMode}
             onSkipIssue={handleSkipIssue}
           />
+
+          {hasRevealedResults && votingResults && showStatisticsPanel ? (
+            <VotingResultsPanel
+              activeIssue={activeIssue}
+              customEstimate={customEstimate}
+              currentUserIsFacilitator={currentUserIsFacilitator}
+              displayedEstimate={displayedEstimate}
+              estimateStatus={estimateStatus}
+              isIssuesPanelOpen={showIssuesPanel}
+              showAverage={gameState.game.show_average}
+              votingResults={votingResults}
+              onChangeEstimateClick={() => setShowChangeEstimateModal(true)}
+              onClose={() => setShowStatisticsPanel(false)}
+              onPickNextIssue={handlePickNextIssue}
+            />
+          ) : hasRevealedResults && votingResults ? (
+            <StatisticsPanelBar onOpen={() => setShowStatisticsPanel(true)} />
+          ) : null}
         </section>
 
         {showIssuesPanel && (

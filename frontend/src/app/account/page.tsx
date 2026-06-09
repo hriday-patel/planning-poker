@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowLeft,
   Eye,
   FileText,
   HelpCircle,
@@ -109,28 +108,6 @@ export default function AccountPage() {
 
   return (
     <PageShell>
-      <nav
-        className="border-b"
-        style={{
-          backgroundColor: "var(--surface-primary)",
-          borderColor: "var(--border-color)",
-        }}
-      >
-        <div className="container mx-auto flex h-16 items-center justify-between px-4 sm:px-6">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => router.push("/")}
-            className="shadow-none"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back to Home
-          </Button>
-          <h1 className="text-xl font-semibold">My Account</h1>
-          <div className="w-28" />
-        </div>
-      </nav>
-
       <main className="container mx-auto max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
         <PageHeader
           eyebrow="Profile"

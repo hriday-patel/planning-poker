@@ -1,11 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Card } from "@/components/ui";
 
 export default function LegalPage() {
-  const router = useRouter();
 
   return (
     <div
@@ -15,28 +12,6 @@ export default function LegalPage() {
         color: "var(--text-primary)",
       }}
     >
-      {/* Navigation */}
-      <nav
-        className="border-b"
-        style={{
-          backgroundColor: "var(--surface-primary)",
-          borderColor: "var(--border-color)",
-        }}
-      >
-        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => router.push("/")}
-            className="shadow-none"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back to Home
-          </Button>
-        </div>
-      </nav>
-
-      {/* Content */}
       <div className="container mx-auto px-6 py-12 max-w-4xl">
         <h1 className="text-4xl font-bold mb-8">Legal Notice</h1>
 

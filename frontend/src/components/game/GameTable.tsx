@@ -14,7 +14,6 @@ import type { Issue, Player } from "@/types/game.types";
 import { VotingPhase } from "@/types/game.types";
 import type { VotingResults } from "@/hooks/useGameSocket";
 import VotingDeck from "./VotingDeck";
-import VotingResultsPanel from "./VotingResultsPanel";
 
 interface GameTableProps {
   activeIssue: Issue | null;
@@ -27,26 +26,19 @@ interface GameTableProps {
   currentUserCanVote: boolean;
   currentUserId: string | null;
   currentUserIsFacilitator: boolean;
-  customEstimate: string;
   deckName: string;
   deckValues: string[];
-  displayedEstimate: string | null;
   eligiblePlayerCount: number;
-  estimateStatus: string | null;
   isConnected: boolean;
-  isIssuesPanelOpen: boolean;
   issueTotal: number;
   players: Player[];
   selectedCard: string | null;
-  showAverage: boolean;
   showCountdown: boolean;
   countdownNumber: number;
   votedCount: number;
   votingPhase: VotingPhase;
   votingResults: VotingResults | null;
   onCardSelect: (value: string) => void;
-  onChangeEstimateClick: () => void;
-  onPickNextIssue: () => void;
   onRevealCards: () => void;
   onRevote: () => void;
   onSetSpectatorMode: (isSpectator: boolean, targetUserId?: string) => void;
@@ -122,25 +114,18 @@ export default function GameTable({
   currentUserCanVote,
   currentUserId,
   currentUserIsFacilitator,
-  customEstimate,
   deckName,
   deckValues,
-  displayedEstimate,
   eligiblePlayerCount,
-  estimateStatus,
   isConnected,
-  isIssuesPanelOpen,
   issueTotal,
   onCardSelect,
-  onChangeEstimateClick,
-  onPickNextIssue,
   onRevealCards,
   onRevote,
   onSetSpectatorMode,
   onSkipIssue,
   players,
   selectedCard,
-  showAverage,
   showCountdown,
   votedCount,
   votingPhase,
@@ -181,7 +166,7 @@ export default function GameTable({
         : "Choose an issue";
 
   const statusDescription = hasRevealedResults
-    ? "Review the round statistics below."
+    ? "Expand voting statistics below to review vote distribution and agreement."
     : activeIssue
       ? currentUserCanVote
         ? `${votedCount}/${eligiblePlayerCount} eligible players have voted.`
@@ -504,24 +489,6 @@ export default function GameTable({
               embedded
               selectedCard={selectedCard}
               onCardSelect={onCardSelect}
-            />
-          </div>
-        ) : hasRevealedResults ? (
-          <div
-            className="min-h-48 shrink-0 border-t pt-4"
-            style={{ borderColor: "var(--border-subtle)" }}
-          >
-            <VotingResultsPanel
-              activeIssue={activeIssue}
-              customEstimate={customEstimate}
-              currentUserIsFacilitator={currentUserIsFacilitator}
-              displayedEstimate={displayedEstimate}
-              estimateStatus={estimateStatus}
-              isIssuesPanelOpen={isIssuesPanelOpen}
-              showAverage={showAverage}
-              votingResults={votingResults}
-              onChangeEstimateClick={onChangeEstimateClick}
-              onPickNextIssue={onPickNextIssue}
             />
           </div>
         ) : null}

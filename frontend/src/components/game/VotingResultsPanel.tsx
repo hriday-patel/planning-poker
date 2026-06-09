@@ -1,9 +1,9 @@
 "use client";
 
-import { BarChart3, Edit3 } from "lucide-react";
+import { ChevronDown, Edit3 } from "lucide-react";
 import type { Issue } from "@/types/game.types";
 import type { VotingResults } from "@/hooks/useGameSocket";
-import { Button } from "@/components/ui";
+import { Button, IconButton } from "@/components/ui";
 
 interface VotingResultsPanelProps {
   activeIssue: Issue | null;
@@ -15,6 +15,7 @@ interface VotingResultsPanelProps {
   showAverage: boolean;
   votingResults: VotingResults;
   onChangeEstimateClick: () => void;
+  onClose: () => void;
   onPickNextIssue: () => void;
 }
 
@@ -31,38 +32,38 @@ const formatSpeed = (seconds?: number) => {
 
 function AgreementCircle({ value }: { value: number }) {
   const percentage = clampPercentage(Number.isFinite(value) ? value : 0);
-  const radius = 32;
+  const radius = 50;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (percentage / 100) * circumference;
 
   return (
     <div
-      className="flex h-20 w-20 shrink-0 items-center justify-center text-center"
+      className="flex h-36 w-36 shrink-0 items-center justify-center text-center"
       aria-label={`Agreement ${percentage}%`}
     >
-      <div className="relative h-20 w-20">
-        <svg className="h-20 w-20 -rotate-90" viewBox="0 0 72 72">
+      <div className="relative h-36 w-36">
+        <svg className="h-36 w-36 -rotate-90" viewBox="0 0 108 108">
           <circle
-            cx="36"
-            cy="36"
+            cx="54"
+            cy="54"
             r={radius}
             fill="none"
-            strokeWidth="5"
+            strokeWidth="7"
             style={{ stroke: "var(--surface-tertiary)" }}
           />
           <circle
-            cx="36"
-            cy="36"
+            cx="54"
+            cy="54"
             r={radius}
             fill="none"
             strokeLinecap="round"
-            strokeWidth="5"
+            strokeWidth="7"
             strokeDasharray={circumference}
             strokeDashoffset={offset}
             style={{ stroke: "var(--primary)" }}
           />
         </svg>
-        <span className="absolute inset-0 flex items-center justify-center text-sm font-bold tabular-nums">
+        <span className="absolute inset-0 flex items-center justify-center text-2xl font-bold tabular-nums">
           {percentage}%
         </span>
       </div>
@@ -84,20 +85,20 @@ function StatTile({
   return (
     <div className={`min-w-0 ${className}`}>
       <span
-        className="block text-xs font-semibold leading-4"
+        className="block text-base font-semibold leading-6"
         style={{ color: "var(--text-secondary)" }}
       >
         {label}
       </span>
       <span
-        className="block truncate text-base font-semibold leading-6"
+        className="block truncate text-xl font-semibold leading-8"
         title={value}
       >
         {value}
       </span>
       {meta ? (
         <span
-          className="block truncate text-xs font-medium leading-4 tabular-nums"
+          className="block truncate text-base font-medium leading-6 tabular-nums"
           style={{ color: "var(--text-secondary)" }}
           title={meta}
         >
@@ -116,6 +117,7 @@ export default function VotingResultsPanel({
   estimateStatus,
   isIssuesPanelOpen,
   onChangeEstimateClick,
+  onClose,
   onPickNextIssue,
   showAverage,
   votingResults,
@@ -146,134 +148,141 @@ export default function VotingResultsPanel({
     },
   ];
   const totalVoters = Math.max(1, votingResults.total_voters);
-  const isEstimateSaved = Boolean(estimateStatus);
   const distributionColumns = isIssuesPanelOpen
-    ? "2rem 3rem minmax(1.5rem,max-content)"
-    : "2rem 4rem minmax(1.5rem,max-content)";
-  const layoutClassName = isIssuesPanelOpen
-    ? "grid grid-cols-1 gap-5 lg:grid-cols-[auto_minmax(0,1fr)_12rem] lg:items-start lg:gap-6"
-    : "grid grid-cols-1 gap-5 lg:grid-cols-[auto_minmax(0,1fr)_12rem] lg:items-start lg:gap-8 xl:gap-10";
-  const centerClassName = isIssuesPanelOpen
-    ? "grid w-fit min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-6 justify-self-center"
-    : "flex min-w-0 flex-wrap items-start justify-center gap-4 justify-self-center lg:flex-nowrap lg:gap-5";
+    ? "2.5rem 4rem minmax(1.5rem,max-content)"
+    : "3rem 7rem minmax(1.5rem,max-content)";
+  const sectionHeaderClass =
+    "text-sm font-semibold uppercase tracking-wide leading-5";
 
   return (
-    <section aria-labelledby="voting-statistics-heading" className="w-full">
-      <div className="mb-4 flex items-center gap-2.5">
-        <BarChart3
-          className="h-5 w-5"
-          style={{ color: "var(--primary)" }}
-          aria-hidden="true"
-        />
-        <h3 id="voting-statistics-heading" className="text-base font-semibold">
+    <aside
+      aria-labelledby="voting-statistics-heading"
+      className="shrink-0 border-t px-5 py-4 sm:px-6 sm:py-5"
+      style={{
+        backgroundColor: "var(--surface-primary)",
+        borderColor: "var(--border-color)",
+      }}
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <h2 id="voting-statistics-heading" className="text-base font-semibold">
           Voting statistics
-        </h3>
+        </h2>
+        <IconButton
+          onClick={onClose}
+          aria-label="Close voting statistics"
+          title="Close voting statistics"
+          size="sm"
+          variant="secondary"
+          style={{
+            backgroundColor: "var(--surface-secondary)",
+            borderColor: "var(--border-color)",
+            color: "var(--text-secondary)",
+          }}
+        >
+          <ChevronDown className="h-4 w-4" aria-hidden="true" />
+        </IconButton>
       </div>
 
-      <div
-        className={`rounded-xl border p-4 shadow-theme sm:p-5 ${layoutClassName}`}
-        style={{
-          backgroundColor: "var(--surface-primary)",
-          borderColor: "var(--border-color)",
-        }}
-      >
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[auto_auto_1fr_minmax(13rem,14rem)] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-10 lg:gap-y-2 xl:gap-x-12">
+        <p
+          className={`order-1 ${sectionHeaderClass} lg:order-0 lg:col-start-1 lg:row-start-1`}
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Vote Counts
+        </p>
+
+        <p
+          className={`order-3 ${sectionHeaderClass} lg:order-0 lg:col-start-2 lg:row-start-1`}
+          style={{ color: "var(--text-secondary)" }}
+        >
+          Summary
+        </p>
+
         <div
-          className="w-fit max-w-full justify-self-start"
+          className="order-2 min-w-0 lg:order-0 lg:col-start-1 lg:row-start-2"
           aria-label="Vote distribution"
         >
-          <p
-            className="mb-3 text-xs font-semibold uppercase tracking-wide"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            Vote Counts
-          </p>
           <div className="flex flex-col gap-2.5">
-            {distributionEntries.map(([value, count]) => {
-              const percentage = clampPercentage((count / totalVoters) * 100);
-              const lineWidth = count > 0 ? Math.max(8, percentage) : 0;
+            {distributionEntries.length > 0 ? (
+              distributionEntries.map(([value, count]) => {
+                const percentage = clampPercentage((count / totalVoters) * 100);
+                const lineWidth = count > 0 ? Math.max(8, percentage) : 0;
 
-              return (
-                <div
-                  key={value}
-                  className="grid items-center gap-2"
-                  style={{ gridTemplateColumns: distributionColumns }}
-                >
-                  <span className="min-w-0 truncate text-sm font-semibold leading-5">
-                    {value}
-                  </span>
+                return (
                   <div
-                    className="h-3 min-w-0 overflow-hidden rounded-full"
-                    style={{ backgroundColor: "var(--surface-tertiary)" }}
+                    key={value}
+                    className="grid items-center gap-2.5"
+                    style={{ gridTemplateColumns: distributionColumns }}
                   >
+                    <span className="min-w-0 truncate text-lg font-semibold leading-7">
+                      {value}
+                    </span>
                     <div
-                      className="h-full rounded-full"
-                      style={{
-                        width: `${lineWidth}%`,
-                        background:
-                          "linear-gradient(90deg, var(--primary), var(--accent))",
-                      }}
-                    />
+                      className="h-5 min-w-0 overflow-hidden rounded-full"
+                      style={{ backgroundColor: "var(--surface-tertiary)" }}
+                    >
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${lineWidth}%`,
+                          background:
+                            "linear-gradient(90deg, var(--primary), var(--accent))",
+                        }}
+                      />
+                    </div>
+                    <span
+                      className="text-right text-lg font-semibold leading-7 tabular-nums"
+                      style={{ color: "var(--text-secondary)" }}
+                    >
+                      {count}
+                    </span>
                   </div>
-                  <span
-                    className="text-right text-sm font-semibold leading-5 tabular-nums"
-                    style={{ color: "var(--text-secondary)" }}
-                  >
-                    {count}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="min-w-0 justify-self-center">
-          <p
-            className="mb-3 text-center text-xs font-semibold uppercase tracking-wide"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            Summary
-          </p>
-          <div className={centerClassName}>
-            <div className="flex shrink-0 flex-col items-center gap-1.5">
-              <AgreementCircle value={votingResults.agreement} />
-              <span
-                className="text-xs font-semibold leading-4"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                Agreement
-              </span>
-            </div>
-
-            {isIssuesPanelOpen ? (
-              <div className="grid min-w-0 grid-cols-[6.5rem_6.5rem] gap-x-6 gap-y-4">
-                {summaryStats.map((stat) => (
-                  <StatTile
-                    key={stat.label}
-                    label={stat.label}
-                    meta={stat.meta}
-                    value={stat.value}
-                  />
-                ))}
-              </div>
+                );
+              })
             ) : (
-              summaryStats.map((stat) => (
-                <StatTile
-                  key={stat.label}
-                  className="w-24 sm:w-28"
-                  label={stat.label}
-                  meta={stat.meta}
-                  value={stat.value}
-                />
-              ))
+              <p
+                className="text-base font-medium leading-6"
+                style={{ color: "var(--text-tertiary)" }}
+              >
+                No votes recorded
+              </p>
             )}
           </div>
         </div>
 
-        <div className="flex w-48 max-w-full flex-col gap-2.5 justify-self-start lg:justify-self-end">
+        <div className="order-4 flex min-w-0 items-center gap-6 lg:order-0 lg:col-start-2 lg:row-start-2 lg:gap-8">
+          <div className="flex shrink-0 flex-col items-center gap-1.5">
+            <AgreementCircle value={votingResults.agreement} />
+            <span
+              className="text-base font-semibold leading-6"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Agreement
+            </span>
+          </div>
+
+          <div
+            className={`grid min-w-0 gap-x-6 gap-y-4 ${
+              isIssuesPanelOpen
+                ? "grid-cols-[minmax(7.5rem,1fr)_minmax(7.5rem,1fr)]"
+                : "grid-cols-2 lg:grid-cols-[minmax(8.5rem,1fr)_minmax(8.5rem,1fr)_minmax(8.5rem,1fr)_minmax(8.5rem,1fr)] lg:grid-rows-2"
+            }`}
+          >
+            {summaryStats.map((stat) => (
+              <StatTile
+                key={stat.label}
+                label={stat.label}
+                meta={stat.meta}
+                value={stat.value}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="order-5 flex w-full min-w-0 flex-col gap-2.5 sm:max-w-sm lg:order-0 lg:col-start-4 lg:row-start-2 lg:max-w-none lg:self-start">
           <Button
             type="button"
             onClick={onPickNextIssue}
-            size="sm"
             className="w-full justify-center"
           >
             Pick next issue
@@ -282,15 +291,14 @@ export default function VotingResultsPanel({
           {currentUserIsFacilitator && activeIssue && (
             <div className="flex min-w-0 flex-col gap-2">
               <label
-                className="block text-[10px] font-medium"
+                className="block text-sm font-medium"
                 style={{ color: "var(--text-tertiary)" }}
               >
                 Facilitator estimate
               </label>
 
-              {/* Read-only Estimate Display Field */}
               <div
-                className="flex h-9 w-full items-center justify-center rounded-md border px-3 text-sm font-semibold"
+                className="flex h-11 w-full items-center justify-center rounded-md border px-3 text-base font-semibold"
                 style={{
                   backgroundColor: "var(--surface-secondary)",
                   borderColor: "var(--border-color)",
@@ -301,11 +309,9 @@ export default function VotingResultsPanel({
                 {customEstimate || displayedEstimate || "Not set"}
               </div>
 
-              {/* Change Estimate Button */}
               <Button
                 type="button"
                 onClick={onChangeEstimateClick}
-                size="sm"
                 variant="secondary"
                 className="w-full justify-center"
               >
@@ -315,7 +321,7 @@ export default function VotingResultsPanel({
 
               {estimateStatus && (
                 <span
-                  className="block text-[10px] font-medium leading-4"
+                  className="block text-sm font-medium leading-5"
                   style={{ color: "var(--text-tertiary)" }}
                   aria-live="polite"
                 >
@@ -326,7 +332,7 @@ export default function VotingResultsPanel({
           )}
         </div>
       </div>
-    </section>
+    </aside>
   );
 }
 

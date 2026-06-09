@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronDown, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, SlidersHorizontal } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import {
   Alert,
@@ -184,26 +184,6 @@ function CreateGamePageContent() {
         color: "var(--text-primary)",
       }}
     >
-      <nav
-        className="border-b"
-        style={{
-          backgroundColor: "var(--surface-primary)",
-          borderColor: "var(--border-color)",
-        }}
-      >
-        <div className="container mx-auto flex h-16 items-center px-4 sm:px-6">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => router.push("/")}
-            className="shadow-none"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Back to Home
-          </Button>
-        </div>
-      </nav>
-
       <main className="container mx-auto max-w-2xl px-4 py-8 sm:py-10">
         <header className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>

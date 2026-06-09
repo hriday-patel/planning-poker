@@ -1,16 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
-  Layers3,
   LogIn,
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import ThemeToggle from "@/components/ThemeToggle";
 import { apiFetch } from "@/lib/api";
 import { Alert, Badge, Button, Card, PageShell } from "@/components/ui";
 
@@ -92,40 +89,6 @@ function LoginPageContent() {
 
   return (
     <PageShell>
-      <nav
-        className="border-b"
-        style={{
-          backgroundColor: "var(--surface-primary)",
-          borderColor: "var(--border-color)",
-        }}
-      >
-        <div className="container mx-auto flex items-center justify-between gap-4 px-6 py-4">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
-            <span
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
-              style={{
-                backgroundColor: "var(--primary)",
-                color: "var(--text-on-accent)",
-              }}
-            >
-              <Layers3 className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <span className="min-w-0">
-              <span className="block truncate text-lg font-semibold tracking-tight">
-                Planning Poker
-              </span>
-              <span
-                className="hidden text-xs sm:block"
-                style={{ color: "var(--text-tertiary)" }}
-              >
-                Secure estimation workspace
-              </span>
-            </span>
-          </Link>
-          <ThemeToggle />
-        </div>
-      </nav>
-
       <main className="container mx-auto flex min-h-[calc(100vh-73px)] items-center justify-center px-6 py-12">
         <Card className="w-full max-w-md p-6 sm:p-8" variant="primary">
           <Badge variant="info" className="mb-5">
