@@ -8,10 +8,12 @@ import {
   GameState,
   Issue,
   JiraDuplicateAction,
+  JiraEstimateInsertRequest,
   JiraImportCandidate,
   JiraImportConfirmResponse,
   JiraImportPreviewResponse,
   JiraImportRequest,
+  JiraInsertEstimatesResponse,
   VotingPhase,
   Player,
 } from "@/types/game.types";
@@ -26,6 +28,7 @@ import VotingHistory from "@/components/VotingHistory";
 import GameSettingsModal from "@/components/GameSettingsModal";
 import GuestModeModal from "@/components/GuestModeModal";
 import JiraImportModal from "@/components/JiraImportModal";
+import JiraInsertEstimatesModal from "@/components/JiraInsertEstimatesModal";
 import ChangeEstimateModal from "@/components/ChangeEstimateModal";
 import GameTable from "@/components/game/GameTable";
 import GameTopBar from "@/components/game/GameTopBar";
@@ -91,6 +94,8 @@ export default function GameRoomPage() {
   const [showTimerModal, setShowTimerModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showJiraImportModal, setShowJiraImportModal] = useState(false);
+  const [showInsertEstimatesModal, setShowInsertEstimatesModal] =
+    useState(false);
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [showGameDropdown, setShowGameDropdown] = useState(false);
   const [showChangeEstimateModal, setShowChangeEstimateModal] = useState(false);
@@ -111,6 +116,7 @@ export default function GameRoomPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [isImportingIssues, setIsImportingIssues] = useState(false);
   const [isImportingJira, setIsImportingJira] = useState(false);
+  const [isInsertingEstimates, setIsInsertingEstimates] = useState(false);
   const [customEstimate, setCustomEstimate] = useState("");
   const [pendingEstimate, setPendingEstimate] = useState("");
   const [estimateStatus, setEstimateStatus] = useState<string | null>(null);
@@ -393,6 +399,17 @@ export default function GameRoomPage() {
   );
   const pendingIssues = useMemo(
     () => gameState.issues.filter((issue) => issue.status === "pending"),
+    [gameState.issues],
+  );
+
+  const estimateReadyIssues = useMemo(
+    () =>
+      gameState.issues.filter(
+        (issue) =>
+          issue.source === "jira" &&
+          Boolean(issue.external_key) &&
+          issue.final_estimate != null,
+      ),
     [gameState.issues],
   );
 
@@ -732,6 +749,44 @@ export default function GameRoomPage() {
     }
   };
 
+  const handleInsertJiraEstimates = async (
+    request: JiraEstimateInsertRequest,
+  ): Promise<JiraInsertEstimatesResponse> => {
+    if (!canManageIssues) {
+      throw new Error("Inserting estimates is facilitator-only in this game");
+    }
+
+    setIsInsertingEstimates(true);
+    setActionError(null);
+
+    try {
+      const response = await apiFetch(
+        `/api/v1/games/${gameId}/issues/export/jira/estimates`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(request),
+        },
+      );
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Failed to insert estimates into Jira");
+      }
+
+      return {
+        updated: data?.updated || [],
+        skipped: data?.skipped || [],
+        failed: data?.failed || [],
+        total: data?.total || 0,
+      };
+    } finally {
+      setIsInsertingEstimates(false);
+    }
+  };
+
   const handleCardSelect = (value: string) => {
     if (!canPickCards) {
       setActionError(
@@ -1068,6 +1123,7 @@ export default function GameRoomPage() {
             canManageIssues={canManageIssues}
             isImportingIssues={isImportingIssues}
             isImportingJira={isImportingJira}
+            isInsertingEstimates={isInsertingEstimates}
             isConnected={isConnected}
             isRoundInProgress={Boolean(activeRound && !activeRound.is_revealed)}
             issueCounts={issueCounts}
@@ -1105,6 +1161,17 @@ export default function GameRoomPage() {
               }
 
               setShowJiraImportModal(true);
+              setActionError(null);
+            }}
+            onInsertEstimates={() => {
+              if (!canManageIssues) {
+                setActionError(
+                  "Inserting estimates is facilitator-only in this game",
+                );
+                return;
+              }
+
+              setShowInsertEstimatesModal(true);
               setActionError(null);
             }}
             onNewIssueTitleChange={setNewIssueTitle}
@@ -1148,6 +1215,14 @@ export default function GameRoomPage() {
         onClose={() => setShowJiraImportModal(false)}
         onPreview={handlePreviewJiraIssues}
         onConfirm={handleConfirmJiraImport}
+      />
+
+      <JiraInsertEstimatesModal
+        isOpen={showInsertEstimatesModal}
+        isLoading={isInsertingEstimates}
+        issues={estimateReadyIssues}
+        onClose={() => setShowInsertEstimatesModal(false)}
+        onInsert={handleInsertJiraEstimates}
       />
 
       <ModalShell

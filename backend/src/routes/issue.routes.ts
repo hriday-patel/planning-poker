@@ -24,7 +24,12 @@ import {
 } from "../services/issueService";
 import { hasGamePermission } from "../services/gameService";
 import { getUserJiraCredentials } from "../services/userService";
-import { fetchJiraSprintIssues, JiraApiError } from "../services/jiraService";
+import {
+  fetchJiraSprintIssues,
+  pushJiraStoryPoints,
+  JiraApiError,
+  JiraStoryPointUpdate,
+} from "../services/jiraService";
 import { logger } from "../utils/logger";
 
 const router = Router();
@@ -548,6 +553,157 @@ router.post(
     } catch (error: any) {
       logger.error("Error importing Jira issues:", error);
       handleIssueImportError(res, error);
+      return;
+    }
+  },
+);
+
+/**
+ * POST /api/v1/games/:gameId/issues/export/jira/estimates
+ * Push final estimates to Jira as story points for all Jira-sourced issues
+ * that already have a finalized estimate
+ */
+router.post(
+  "/:gameId/issues/export/jira/estimates",
+  authenticate as any,
+  uploadRateLimiter,
+  async (req: Request, res: Response): Promise<void> => {
+    const authReq = req as AuthenticatedRequest;
+
+    try {
+      if (!authReq.userId) {
+        res.status(401).json({
+          success: false,
+          error: "Not authenticated",
+        });
+        return;
+      }
+
+      const { gameId } = req.params;
+      const email =
+        typeof req.body?.email === "string" ? req.body.email.trim() : "";
+
+      if (!email) {
+        res.status(400).json({
+          success: false,
+          error: "Email is required",
+        });
+        return;
+      }
+
+      const hasPermission = await hasGamePermission(
+        gameId,
+        authReq.userId,
+        "manage_issues",
+      );
+
+      if (!hasPermission) {
+        res.status(403).json({
+          success: false,
+          error: "You don't have permission to manage issues in this game",
+        });
+        return;
+      }
+
+      const jiraCredentials = await getUserJiraCredentials(authReq.userId);
+
+      if (!jiraCredentials?.apiToken) {
+        res.status(400).json({
+          success: false,
+          error:
+            "No JIRA API token saved. Add it in JIRA Settings from your profile menu first.",
+        });
+        return;
+      }
+
+      const issues = await getGameIssues(gameId);
+      // Dedupe by Jira key (an issue can be imported twice); the latest
+      // occurrence in display order wins.
+      const estimatedIssuesByKey = new Map<
+        string,
+        (typeof issues)[number]
+      >();
+
+      issues.forEach((issue) => {
+        if (
+          issue.source === JIRA_SOURCE &&
+          issue.external_key &&
+          issue.final_estimate != null &&
+          String(issue.final_estimate).trim() !== ""
+        ) {
+          estimatedIssuesByKey.set(issue.external_key, issue);
+        }
+      });
+
+      if (estimatedIssuesByKey.size === 0) {
+        res.status(400).json({
+          success: false,
+          error: "No Jira issues with a final estimate to insert",
+        });
+        return;
+      }
+
+      const updates: JiraStoryPointUpdate[] = [];
+      const skipped: {
+        key: string;
+        estimate: string | null;
+        reason: string;
+      }[] = [];
+
+      estimatedIssuesByKey.forEach((issue, externalKey) => {
+        const storyPoints = Number(String(issue.final_estimate).trim());
+
+        if (Number.isFinite(storyPoints)) {
+          updates.push({ issueKey: externalKey, storyPoints });
+        } else {
+          skipped.push({
+            key: externalKey,
+            estimate: issue.final_estimate,
+            reason: "Estimate is not a number",
+          });
+        }
+      });
+
+      const result =
+        updates.length > 0
+          ? await pushJiraStoryPoints({
+              siteUrl: jiraCredentials.siteUrl,
+              email,
+              apiToken: jiraCredentials.apiToken,
+              updates,
+            })
+          : { updated: [], failed: [] };
+
+      logger.info(
+        `Jira estimates push for game ${gameId}: ${result.updated.length} updated, ${result.failed.length} failed, ${skipped.length} skipped`,
+      );
+
+      res.json({
+        success: true,
+        updated: result.updated,
+        failed: result.failed,
+        skipped,
+        total: estimatedIssuesByKey.size,
+      });
+      return;
+    } catch (error: any) {
+      logger.error("Error inserting Jira estimates:", {
+        message: error?.message,
+        statusCode: error?.statusCode,
+      });
+
+      if (error instanceof JiraApiError) {
+        res.status(error.statusCode >= 500 ? 502 : error.statusCode).json({
+          success: false,
+          error: error.message,
+        });
+        return;
+      }
+
+      res.status(500).json({
+        success: false,
+        error: "Failed to insert estimates into Jira",
+      });
       return;
     }
   },

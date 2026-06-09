@@ -37,6 +37,28 @@ interface JiraFetchContext {
   sprintId: string;
 }
 
+interface JiraFieldResponse {
+  id?: string;
+  name?: string;
+}
+
+export interface JiraStoryPointUpdate {
+  issueKey: string;
+  storyPoints: number;
+}
+
+interface PushJiraStoryPointsParams {
+  siteUrl: string;
+  email: string;
+  apiToken: string;
+  updates: JiraStoryPointUpdate[];
+}
+
+export interface JiraStoryPointsPushResult {
+  updated: { key: string; storyPoints: number }[];
+  failed: { key: string; error: string }[];
+}
+
 export class JiraApiError extends Error {
   statusCode: number;
 
@@ -144,13 +166,16 @@ const readJiraError = async (response: Response): Promise<string> => {
   }
 };
 
-const getJiraStatusMessage = async (response: Response): Promise<string> => {
+const getJiraStatusMessage = async (
+  response: Response,
+  notFoundMessage = "Jira sprint was not found for this site",
+): Promise<string> => {
   if (response.status === 401 || response.status === 403) {
     return "Jira rejected the email or API token";
   }
 
   if (response.status === 404) {
-    return "Jira sprint was not found for this site";
+    return notFoundMessage;
   }
 
   if (response.status === 429) {
@@ -318,6 +343,173 @@ export const fetchJiraSprintIssues = async ({
 
     throw error;
   }
+};
+
+// Field names checked when discovering the story points field, in priority
+// order. "Story Points" is the classic field; "Story point estimate" is used
+// by Jira Cloud team-managed projects.
+const STORY_POINTS_FIELD_NAMES = ["story points", "story point estimate"];
+
+const discoverStoryPointsFieldIds = async (
+  authHeader: string,
+  normalizedSiteUrl: string,
+): Promise<string[]> => {
+  const configuredFieldId = process.env.JIRA_STORY_POINTS_FIELD?.trim();
+
+  if (configuredFieldId) {
+    return [configuredFieldId];
+  }
+
+  const url = new URL("/rest/api/2/field", normalizedSiteUrl);
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Basic ${authHeader}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new JiraApiError(
+      await getJiraStatusMessage(response, "Jira fields could not be loaded"),
+      response.status,
+    );
+  }
+
+  const fields = (await response.json()) as JiraFieldResponse[];
+  const candidateIds = (Array.isArray(fields) ? fields : [])
+    .filter(
+      (field) =>
+        field.id &&
+        field.name &&
+        STORY_POINTS_FIELD_NAMES.includes(field.name.trim().toLowerCase()),
+    )
+    .sort(
+      (a, b) =>
+        STORY_POINTS_FIELD_NAMES.indexOf((a.name as string).trim().toLowerCase()) -
+        STORY_POINTS_FIELD_NAMES.indexOf((b.name as string).trim().toLowerCase()),
+    )
+    .map((field) => field.id as string);
+
+  if (candidateIds.length === 0) {
+    throw new JiraApiError(
+      "No Story Points field was found on this Jira site",
+      400,
+    );
+  }
+
+  return candidateIds;
+};
+
+const updateJiraIssueStoryPoints = async (
+  authHeader: string,
+  normalizedSiteUrl: string,
+  issueKey: string,
+  fieldId: string,
+  storyPoints: number,
+): Promise<void> => {
+  const url = new URL(
+    `/rest/api/2/issue/${encodeURIComponent(issueKey)}`,
+    normalizedSiteUrl,
+  );
+
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Basic ${authHeader}`,
+    },
+    body: JSON.stringify({
+      fields: {
+        [fieldId]: storyPoints,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new JiraApiError(
+      await getJiraStatusMessage(
+        response,
+        `Jira issue ${issueKey} was not found`,
+      ),
+      response.status,
+    );
+  }
+};
+
+export const pushJiraStoryPoints = async ({
+  apiToken,
+  email,
+  siteUrl,
+  updates,
+}: PushJiraStoryPointsParams): Promise<JiraStoryPointsPushResult> => {
+  const normalizedSiteUrl = normalizeJiraSiteUrl(siteUrl);
+  const trimmedEmail = email.trim();
+  const trimmedToken = apiToken.trim();
+
+  if (!trimmedEmail || !trimmedToken) {
+    throw new JiraApiError("Jira site, email, and API token are required");
+  }
+
+  if (updates.length === 0) {
+    return { updated: [], failed: [] };
+  }
+
+  const authHeader = Buffer.from(`${trimmedEmail}:${trimmedToken}`).toString(
+    "base64",
+  );
+  const fieldIds = await discoverStoryPointsFieldIds(
+    authHeader,
+    normalizedSiteUrl,
+  );
+
+  const updated: JiraStoryPointsPushResult["updated"] = [];
+  const failed: JiraStoryPointsPushResult["failed"] = [];
+  // Remember the field that worked so subsequent issues try it first.
+  let preferredFieldId = fieldIds[0];
+
+  for (const update of updates) {
+    const orderedFieldIds = [
+      preferredFieldId,
+      ...fieldIds.filter((fieldId) => fieldId !== preferredFieldId),
+    ];
+    let lastErrorMessage = "Failed to update Jira issue";
+    let didUpdate = false;
+
+    for (const fieldId of orderedFieldIds) {
+      try {
+        await updateJiraIssueStoryPoints(
+          authHeader,
+          normalizedSiteUrl,
+          update.issueKey,
+          fieldId,
+          update.storyPoints,
+        );
+        preferredFieldId = fieldId;
+        didUpdate = true;
+        break;
+      } catch (error) {
+        if (!(error instanceof JiraApiError)) {
+          throw error;
+        }
+
+        // Bad credentials will fail for every issue; stop immediately.
+        if (error.statusCode === 401) {
+          throw error;
+        }
+
+        lastErrorMessage = error.message;
+      }
+    }
+
+    if (didUpdate) {
+      updated.push({ key: update.issueKey, storyPoints: update.storyPoints });
+    } else {
+      failed.push({ key: update.issueKey, error: lastErrorMessage });
+    }
+  }
+
+  return { updated, failed };
 };
 
 // Made with Bob

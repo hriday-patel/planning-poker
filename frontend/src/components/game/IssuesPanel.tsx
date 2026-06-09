@@ -8,6 +8,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import type { Issue } from "@/types/game.types";
@@ -32,6 +33,7 @@ interface IssuesPanelProps {
   isConnected: boolean;
   isImportingIssues: boolean;
   isImportingJira: boolean;
+  isInsertingEstimates: boolean;
   isRoundInProgress: boolean;
   issueCounts: IssueCounts;
   issues: Issue[];
@@ -45,6 +47,7 @@ interface IssuesPanelProps {
   onEditIssue: (issue: Issue) => void;
   onImportCsv: (file: File) => void;
   onImportJira: () => void;
+  onInsertEstimates: () => void;
   onNewIssueTitleChange: (value: string) => void;
   onRemovePendingIssues: () => void;
   onToggleAddIssueForm: () => void;
@@ -58,6 +61,7 @@ export default function IssuesPanel({
   isConnected,
   isImportingIssues,
   isImportingJira,
+  isInsertingEstimates,
   isRoundInProgress,
   issueCounts,
   issues,
@@ -69,6 +73,7 @@ export default function IssuesPanel({
   onEditIssue,
   onImportCsv,
   onImportJira,
+  onInsertEstimates,
   onNewIssueTitleChange,
   onRemovePendingIssues,
   onToggleAddIssueForm,
@@ -119,6 +124,12 @@ export default function IssuesPanel({
 
   const pendingCount = issues.filter(
     (issue) => issue.status === "pending",
+  ).length;
+  const estimateReadyCount = issues.filter(
+    (issue) =>
+      issue.source === "jira" &&
+      Boolean(issue.external_key) &&
+      issue.final_estimate != null,
   ).length;
   const actionsDisabled = !isConnected || !canManageIssues;
 
@@ -221,6 +232,20 @@ export default function IssuesPanel({
           >
             <LinkIcon className="h-4 w-4" aria-hidden="true" />
             Import Jira
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={onInsertEstimates}
+            disabled={
+              actionsDisabled || isInsertingEstimates || estimateReadyCount === 0
+            }
+            isLoading={isInsertingEstimates}
+            title="Update Jira story points with the finalized estimates"
+          >
+            <Upload className="h-4 w-4" aria-hidden="true" />
+            Insert Estimates
           </Button>
           <Button
             type="button"

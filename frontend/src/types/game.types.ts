@@ -104,6 +104,33 @@ export interface JiraImportConfirmResponse {
   skippedDuplicates: number;
 }
 
+export interface JiraEstimateInsertRequest {
+  email: string;
+}
+
+export interface JiraEstimateUpdatedItem {
+  key: string;
+  storyPoints: number;
+}
+
+export interface JiraEstimateSkippedItem {
+  key: string;
+  estimate: string | null;
+  reason: string;
+}
+
+export interface JiraEstimateFailedItem {
+  key: string;
+  error: string;
+}
+
+export interface JiraInsertEstimatesResponse {
+  updated: JiraEstimateUpdatedItem[];
+  skipped: JiraEstimateSkippedItem[];
+  failed: JiraEstimateFailedItem[];
+  total: number;
+}
+
 export interface VotingResults {
   votes: { [key: string]: number }; // card_value -> count
   average: number | null;
