@@ -323,16 +323,22 @@ export default function GameRoomPage() {
 
   const activeRound = wsGameState?.current_round || null;
   const activeIssue = gameState.currentIssue;
-  const eligiblePlayers = gameState.players.filter(
+  const votingEligiblePlayers = gameState.players.filter(
     (player) => !player.is_spectator && player.can_vote !== false,
   );
-  const votedCount = eligiblePlayers.filter(
-    (player) => player.has_voted,
-  ).length;
+  const roundParticipants = gameState.players.filter(
+    (player) => !player.is_spectator && !player.is_round_observer,
+  );
+  const isRevealedRound = Boolean(activeRound?.is_revealed);
+  const eligiblePlayers = isRevealedRound
+    ? roundParticipants
+    : votingEligiblePlayers;
+  const eligiblePlayerCount = eligiblePlayers.length;
+  const votedCount = eligiblePlayers.filter((player) => player.has_voted).length;
   const allPlayersVoted =
     Boolean(activeRound?.issue_id) &&
-    eligiblePlayers.length > 0 &&
-    eligiblePlayers.every((player) => player.has_voted);
+    votingEligiblePlayers.length > 0 &&
+    votingEligiblePlayers.every((player) => player.has_voted);
   const currentUserCanVote =
     Boolean(gameState.currentUser) &&
     !gameState.currentUser?.is_spectator &&
@@ -974,7 +980,7 @@ export default function GameRoomPage() {
           gameName={gameState.game.name}
           isConnected={isConnected}
           canToggleSpectator={currentUserCanToggleSpectator}
-          eligiblePlayerCount={eligiblePlayers.length}
+          eligiblePlayerCount={eligiblePlayerCount}
           isSpectator={Boolean(gameState.currentUser?.is_spectator)}
           showGameDropdown={showGameDropdown}
           showIssuesPanel={showIssuesPanel}
@@ -1020,7 +1026,7 @@ export default function GameRoomPage() {
             currentUserIsFacilitator={currentUserIsFacilitator}
             deckName={gameState.game.deck.name}
             deckValues={gameState.game.deck.values}
-            eligiblePlayerCount={eligiblePlayers.length}
+            eligiblePlayerCount={eligiblePlayerCount}
             isConnected={isConnected}
             issueTotal={issueCounts.total}
             players={gameState.players}
