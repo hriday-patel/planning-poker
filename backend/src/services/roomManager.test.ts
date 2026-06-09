@@ -5,6 +5,7 @@ import {
   clearCurrentRound,
   getRoomState,
   haveAllPlayersVoted,
+  revealCards,
   setPlayerSpectatorMode,
   skipVotingRound,
   startVotingRound,
@@ -196,6 +197,36 @@ describe("roomManager voting eligibility", () => {
     expect(state.current_round).toBeNull();
     expect(state.players.every((player) => !player.is_round_observer)).toBe(
       true,
+    );
+  });
+
+  it("includes voting results with speed stats when syncing a revealed round", async () => {
+    const gameId = "revealed-round-sync-game";
+
+    await addPlayerToRoom(gameId, "socket-u1", "u1");
+    await addPlayerToRoom(gameId, "socket-u2", "u2");
+    startVotingRound(gameId, "round-1", "issue-1");
+
+    submitVote(gameId, "u1", "3");
+    submitVote(gameId, "u2", "5");
+    revealCards(gameId);
+
+    const state = await getRoomState(gameId);
+
+    expect(state.current_round?.is_revealed).toBe(true);
+    expect(state.voting_results).toEqual(
+      expect.objectContaining({
+        fastest_voter: expect.objectContaining({
+          user_id: expect.any(String),
+          display_name: expect.any(String),
+          seconds: expect.any(Number),
+        }),
+        slowest_voter: expect.objectContaining({
+          user_id: expect.any(String),
+          display_name: expect.any(String),
+          seconds: expect.any(Number),
+        }),
+      }),
     );
   });
 

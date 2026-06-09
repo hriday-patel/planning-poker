@@ -695,11 +695,17 @@ export const getRoomState = async (gameId: string) => {
     };
   }
 
+  const votingResults =
+    room.current_round?.is_revealed === true
+      ? calculateVotingResults(gameId)
+      : null;
+
   return {
     game,
     players,
     issues,
     current_round: currentRound,
+    voting_results: votingResults,
     timer: room.timer
       ? {
           duration_seconds: room.timer.duration_seconds,

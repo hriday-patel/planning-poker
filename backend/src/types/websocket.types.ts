@@ -256,6 +256,7 @@ export interface GameStatePayload {
     }>;
     is_revealed: boolean;
   } | null;
+  voting_results?: CardsRevealedPayload | null;
 }
 
 /**

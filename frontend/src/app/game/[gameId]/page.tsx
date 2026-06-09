@@ -442,6 +442,10 @@ export default function GameRoomPage() {
         return previousResults;
       }
 
+      if (wsGameState?.voting_results) {
+        return wsGameState.voting_results;
+      }
+
       return buildVotingResultsFromRevealedRound(
         round,
         activeIssue?.final_estimate ?? null,
@@ -451,6 +455,7 @@ export default function GameRoomPage() {
     activeIssue?.final_estimate,
     showCountdown,
     wsGameState?.current_round,
+    wsGameState?.voting_results,
   ]);
 
   const handleAddIssue = (event: React.FormEvent) => {

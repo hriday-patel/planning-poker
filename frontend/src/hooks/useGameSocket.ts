@@ -120,6 +120,7 @@ export interface GameState {
   issues?: any[];
   current_round: VotingRound | null;
   timer: TimerState | null;
+  voting_results?: VotingResults | null;
 }
 
 export interface VotingResults {
@@ -242,6 +243,48 @@ export function useGameSocket(options: UseGameSocketOptions) {
   const [isReconnecting, setIsReconnecting] = useState(false);
   const socketRef = useRef<Socket | null>(null);
 
+  const normalizeVotingResults = useCallback((results: any): VotingResults => {
+    const votes: Array<{
+      user_id: string;
+      card_value: string;
+      submitted_at?: string | null;
+    }> = Array.isArray(results?.votes)
+      ? results.votes
+          .filter(
+            (vote: any) =>
+              typeof vote?.user_id === "string" &&
+              typeof vote?.card_value === "string",
+          )
+          .map((vote: any) => ({
+            user_id: vote.user_id,
+            card_value: vote.card_value,
+            submitted_at: vote.submitted_at ?? null,
+          }))
+      : [];
+    const distribution =
+      results?.distribution ||
+      votes.reduce<Record<string, number>>((allVotes, vote) => {
+        if (vote.card_value) {
+          allVotes[vote.card_value] = (allVotes[vote.card_value] || 0) + 1;
+        }
+        return allVotes;
+      }, {});
+
+    return {
+      votes,
+      distribution,
+      average: typeof results?.average === "number" ? results.average : null,
+      agreement: typeof results?.agreement === "number" ? results.agreement : 0,
+      total_voters:
+        typeof results?.total_voters === "number"
+          ? results.total_voters
+          : votes.length,
+      final_estimate: results?.final_estimate ?? null,
+      fastest_voter: results?.fastest_voter ?? null,
+      slowest_voter: results?.slowest_voter ?? null,
+    };
+  }, []);
+
   const normalizeGameState = useCallback((state: any): GameState => {
     const round = state.current_round as BackendVotingRound | null;
     const roundVotes = Array.isArray(round?.votes) ? round.votes : [];
@@ -287,50 +330,11 @@ export function useGameSocket(options: UseGameSocketOptions) {
           }
         : null,
       timer: state.timer || null,
+      voting_results: state.voting_results
+        ? normalizeVotingResults(state.voting_results)
+        : null,
     };
-  }, []);
-
-  const normalizeVotingResults = useCallback((results: any): VotingResults => {
-    const votes: Array<{
-      user_id: string;
-      card_value: string;
-      submitted_at?: string | null;
-    }> = Array.isArray(results?.votes)
-      ? results.votes
-          .filter(
-            (vote: any) =>
-              typeof vote?.user_id === "string" &&
-              typeof vote?.card_value === "string",
-          )
-          .map((vote: any) => ({
-            user_id: vote.user_id,
-            card_value: vote.card_value,
-            submitted_at: vote.submitted_at ?? null,
-          }))
-      : [];
-    const distribution =
-      results?.distribution ||
-      votes.reduce<Record<string, number>>((allVotes, vote) => {
-        if (vote.card_value) {
-          allVotes[vote.card_value] = (allVotes[vote.card_value] || 0) + 1;
-        }
-        return allVotes;
-      }, {});
-
-    return {
-      votes,
-      distribution,
-      average: typeof results?.average === "number" ? results.average : null,
-      agreement: typeof results?.agreement === "number" ? results.agreement : 0,
-      total_voters:
-        typeof results?.total_voters === "number"
-          ? results.total_voters
-          : votes.length,
-      final_estimate: results?.final_estimate ?? null,
-      fastest_voter: results?.fastest_voter ?? null,
-      slowest_voter: results?.slowest_voter ?? null,
-    };
-  }, []);
+  }, [normalizeVotingResults]);
 
   // Store callbacks in ref to avoid recreating registerSocketEvents
   const callbacksRef = useRef({
