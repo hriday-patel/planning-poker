@@ -183,19 +183,12 @@ export default function VotingResultsPanel({
         </IconButton>
       </div>
 
-      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[auto_auto_1fr_minmax(13rem,14rem)] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-10 lg:gap-y-2 xl:gap-x-12">
+      <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[auto_1fr_minmax(13rem,14rem)] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-10 lg:gap-y-2 xl:gap-x-12">
         <p
           className={`order-1 ${sectionHeaderClass} lg:order-0 lg:col-start-1 lg:row-start-1`}
           style={{ color: "var(--text-secondary)" }}
         >
           Vote Counts
-        </p>
-
-        <p
-          className={`order-3 ${sectionHeaderClass} lg:order-0 lg:col-start-2 lg:row-start-1`}
-          style={{ color: "var(--text-secondary)" }}
-        >
-          Summary
         </p>
 
         <div
@@ -250,36 +243,45 @@ export default function VotingResultsPanel({
           </div>
         </div>
 
-        <div className="order-4 flex min-w-0 items-center gap-6 lg:order-0 lg:col-start-2 lg:row-start-2 lg:gap-8">
-          <div className="flex shrink-0 flex-col items-center gap-1.5">
-            <AgreementCircle value={votingResults.agreement} />
-            <span
-              className="text-base font-semibold leading-6"
-              style={{ color: "var(--text-secondary)" }}
-            >
-              Agreement
-            </span>
-          </div>
-
-          <div
-            className={`grid min-w-0 gap-x-6 gap-y-4 ${
-              isIssuesPanelOpen
-                ? "grid-cols-[minmax(7.5rem,1fr)_minmax(7.5rem,1fr)]"
-                : "grid-cols-2 lg:grid-cols-[minmax(8.5rem,1fr)_minmax(8.5rem,1fr)_minmax(8.5rem,1fr)_minmax(8.5rem,1fr)] lg:grid-rows-2"
-            }`}
+        <div className="order-3 flex min-w-0 flex-col items-center gap-2 lg:order-0 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:justify-self-center lg:self-center">
+          <p
+            className={`${sectionHeaderClass} text-center`}
+            style={{ color: "var(--text-secondary)" }}
           >
-            {summaryStats.map((stat) => (
-              <StatTile
-                key={stat.label}
-                label={stat.label}
-                meta={stat.meta}
-                value={stat.value}
-              />
-            ))}
+            Summary
+          </p>
+
+          <div className="flex min-w-0 items-center gap-6 lg:gap-8">
+            <div className="flex shrink-0 flex-col items-center gap-1.5">
+              <AgreementCircle value={votingResults.agreement} />
+              <span
+                className="text-base font-semibold leading-6"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                Agreement
+              </span>
+            </div>
+
+            <div
+              className={`grid min-w-0 gap-x-6 gap-y-4 ${
+                isIssuesPanelOpen
+                  ? "grid-cols-[minmax(7.5rem,1fr)_minmax(7.5rem,1fr)]"
+                  : "grid-cols-2 lg:grid-cols-[minmax(8.5rem,1fr)_minmax(8.5rem,1fr)_minmax(8.5rem,1fr)_minmax(8.5rem,1fr)] lg:grid-rows-2"
+              }`}
+            >
+              {summaryStats.map((stat) => (
+                <StatTile
+                  key={stat.label}
+                  label={stat.label}
+                  meta={stat.meta}
+                  value={stat.value}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className="order-5 flex w-full min-w-0 flex-col gap-2.5 sm:max-w-sm lg:order-0 lg:col-start-4 lg:row-start-2 lg:max-w-none lg:self-start">
+        <div className="order-4 flex w-full min-w-0 flex-col gap-2.5 sm:max-w-sm lg:order-0 lg:col-start-3 lg:row-start-2 lg:max-w-none lg:self-start">
           <Button
             type="button"
             onClick={onPickNextIssue}

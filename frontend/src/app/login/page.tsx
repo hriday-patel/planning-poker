@@ -8,6 +8,7 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
+import { getHomeOrActiveGamePath } from "@/lib/activeGameSession";
 import { apiFetch } from "@/lib/api";
 import { Alert, Badge, Button, Card, PageShell } from "@/components/ui";
 
@@ -130,7 +131,7 @@ function LoginPageContent() {
           <Button
             type="button"
             variant="ghost"
-            onClick={() => router.push("/")}
+            onClick={() => router.push(getHomeOrActiveGamePath())}
             className="mt-3 w-full"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />

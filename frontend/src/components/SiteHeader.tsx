@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ArrowLeft, Layers3 } from "lucide-react";
 import HeaderProfileMenu from "@/components/HeaderProfileMenu";
+import { getHomeOrActiveGamePath } from "@/lib/activeGameSession";
 import { Button } from "@/components/ui";
 
 const logoTaglines: Record<string, string> = {
@@ -63,7 +64,7 @@ export default function SiteHeader() {
             <Button
               type="button"
               variant="ghost"
-              onClick={() => router.push("/")}
+              onClick={() => router.push(getHomeOrActiveGamePath())}
               className="shadow-none"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />

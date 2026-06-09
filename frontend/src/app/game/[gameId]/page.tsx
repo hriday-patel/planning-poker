@@ -32,6 +32,10 @@ import GameTopBar from "@/components/game/GameTopBar";
 import IssuesPanel from "@/components/game/IssuesPanel";
 import StatisticsPanelBar from "@/components/game/StatisticsPanelBar";
 import VotingResultsPanel from "@/components/game/VotingResultsPanel";
+import {
+  clearActiveGameSession,
+  setActiveGameSession,
+} from "@/lib/activeGameSession";
 import { apiFetch } from "@/lib/api";
 import {
   Alert,
@@ -120,6 +124,10 @@ export default function GameRoomPage() {
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveGameSession(gameId);
+  }, [gameId]);
 
   useEffect(() => {
     const bootstrapSession = async () => {
@@ -905,6 +913,7 @@ export default function GameRoomPage() {
         ? selectedLeaveFacilitator
         : undefined,
     );
+    clearActiveGameSession();
     window.setTimeout(() => router.push("/"), 120);
   };
 
@@ -932,7 +941,10 @@ export default function GameRoomPage() {
       <PageShell>
         <GuestModeModal
           isOpen={showGuestJoinModal}
-          onClose={() => router.push("/")}
+          onClose={() => {
+            clearActiveGameSession();
+            router.push("/");
+          }}
           mode="join"
           gameId={gameId}
         />
