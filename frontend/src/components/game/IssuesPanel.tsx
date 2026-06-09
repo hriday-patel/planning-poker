@@ -1,7 +1,15 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useEffect, useRef } from "react";
 import {
+  type ChangeEvent,
+  type FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  ChevronDown,
   FileUp,
   Link as LinkIcon,
   ListChecks,
@@ -9,6 +17,8 @@ import {
   Plus,
   Trash2,
   Upload,
+  User,
+  Users,
   X,
 } from "lucide-react";
 import type { Issue } from "@/types/game.types";
@@ -54,6 +64,12 @@ interface IssuesPanelProps {
   onVoteIssue: (issue: Issue) => void;
 }
 
+const ALL_ASSIGNEES_FILTER = "all";
+const UNASSIGNED_FILTER = "__unassigned__";
+
+const getIssueAssignee = (issue: Issue): string | null =>
+  issue.assignee?.trim() || null;
+
 export default function IssuesPanel({
   actionError,
   activeIssueId,
@@ -85,6 +101,60 @@ export default function IssuesPanel({
   const issueRefs = useRef(new Map<string, HTMLDivElement>());
   const previousIssueIdsRef = useRef<Set<string>>(new Set());
   const isInitialIssuesRenderRef = useRef(true);
+  const [assigneeFilter, setAssigneeFilter] = useState<string>(
+    ALL_ASSIGNEES_FILTER,
+  );
+
+  const assigneeOptions = useMemo(() => {
+    const names = new Set<string>();
+
+    issues.forEach((issue) => {
+      const assignee = getIssueAssignee(issue);
+
+      if (assignee) {
+        names.add(assignee);
+      }
+    });
+
+    return Array.from(names).sort((a, b) => a.localeCompare(b));
+  }, [issues]);
+
+  const hasUnassignedIssues = useMemo(
+    () => issues.some((issue) => !getIssueAssignee(issue)),
+    [issues],
+  );
+
+  // Reset the filter if the selected assignee no longer has any issues.
+  useEffect(() => {
+    if (assigneeFilter === ALL_ASSIGNEES_FILTER) {
+      return;
+    }
+
+    const filterIsStale =
+      assigneeFilter === UNASSIGNED_FILTER
+        ? !hasUnassignedIssues
+        : !assigneeOptions.includes(assigneeFilter);
+
+    if (filterIsStale) {
+      setAssigneeFilter(ALL_ASSIGNEES_FILTER);
+    }
+  }, [assigneeFilter, assigneeOptions, hasUnassignedIssues]);
+
+  const visibleIssues = useMemo(() => {
+    if (assigneeFilter === ALL_ASSIGNEES_FILTER) {
+      return issues;
+    }
+
+    if (assigneeFilter === UNASSIGNED_FILTER) {
+      return issues.filter((issue) => !getIssueAssignee(issue));
+    }
+
+    return issues.filter(
+      (issue) => getIssueAssignee(issue) === assigneeFilter,
+    );
+  }, [assigneeFilter, issues]);
+
+  const isAssigneeFilterActive = assigneeFilter !== ALL_ASSIGNEES_FILTER;
 
   useEffect(() => {
     const currentIssueIds = new Set(issues.map((issue) => issue.id));
@@ -258,6 +328,61 @@ export default function IssuesPanel({
             <Trash2 className="h-4 w-4" aria-hidden="true" />
             Pending
           </Button>
+          <div className="relative col-span-2">
+            <Users
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+              style={{ color: "var(--text-tertiary)" }}
+              aria-hidden="true"
+            />
+            <select
+              value={assigneeFilter}
+              onChange={(event) => setAssigneeFilter(event.target.value)}
+              aria-label="Filter issues by assignee"
+              title={
+                assigneeOptions.length === 0
+                  ? "No assignee information yet; import Jira issues to filter by assignee"
+                  : "Filter issues by assignee"
+              }
+              disabled={assigneeOptions.length === 0}
+              className="min-h-9 w-full appearance-none rounded-lg border py-2 pl-9 pr-9 text-sm font-semibold shadow-sm outline-none transition-colors focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)] disabled:pointer-events-none disabled:opacity-55"
+              style={{
+                backgroundColor: "var(--surface-secondary)",
+                borderColor: "var(--border-color)",
+                color: "var(--text-primary)",
+              }}
+            >
+              <option value={ALL_ASSIGNEES_FILTER}>All assignees</option>
+              {assigneeOptions.map((assignee) => (
+                <option key={assignee} value={assignee}>
+                  {assignee}
+                </option>
+              ))}
+              {hasUnassignedIssues && assigneeOptions.length > 0 && (
+                <option value={UNASSIGNED_FILTER}>Unassigned</option>
+              )}
+            </select>
+            <ChevronDown
+              className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2"
+              style={{ color: "var(--text-tertiary)" }}
+              aria-hidden="true"
+            />
+          </div>
+          {isAssigneeFilterActive && (
+            <p
+              className="col-span-2 text-xs"
+              style={{ color: "var(--text-tertiary)" }}
+            >
+              Showing {visibleIssues.length} of {issues.length} issues for{" "}
+              <span
+                className="font-semibold"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {assigneeFilter === UNASSIGNED_FILTER
+                  ? "Unassigned"
+                  : assigneeFilter}
+              </span>
+            </p>
+          )}
           <input
             ref={fileInputRef}
             type="file"
@@ -311,9 +436,16 @@ export default function IssuesPanel({
               description="Use the add button to build the voting queue."
               className="mt-8"
             />
+          ) : visibleIssues.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No matching issues"
+              description="No issues match the selected assignee filter."
+              className="mt-8"
+            />
           ) : (
             <div className="space-y-3">
-              {issues.map((issue) => {
+              {visibleIssues.map((issue) => {
                 const isActiveIssue = activeIssueId === issue.id;
                 const isIssueVoted = issue.status === "voted";
                 const isPendingIssue = issue.status === "pending";
@@ -351,21 +483,39 @@ export default function IssuesPanel({
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        {issue.external_key && (
+                        {(issue.external_key || issue.assignee) && (
                           <div className="mb-2 flex flex-wrap items-center gap-2">
-                            {issue.external_url ? (
-                              <a
-                                href={issue.external_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex"
-                              >
+                            {issue.external_key &&
+                              (issue.external_url ? (
+                                <a
+                                  href={issue.external_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex"
+                                >
+                                  <Badge variant="info">
+                                    {issue.external_key}
+                                  </Badge>
+                                </a>
+                              ) : (
                                 <Badge variant="info">
                                   {issue.external_key}
                                 </Badge>
-                              </a>
-                            ) : (
-                              <Badge variant="info">{issue.external_key}</Badge>
+                              ))}
+                            {issue.assignee && (
+                              <span
+                                className="inline-flex min-w-0 items-center gap-1 text-xs font-medium"
+                                style={{ color: "var(--text-secondary)" }}
+                                title={`Assigned to ${issue.assignee}`}
+                              >
+                                <User
+                                  className="h-3 w-3 shrink-0"
+                                  aria-hidden="true"
+                                />
+                                <span className="truncate">
+                                  {issue.assignee}
+                                </span>
+                              </span>
                             )}
                           </div>
                         )}

@@ -69,6 +69,7 @@ export interface Issue {
   source?: string;
   external_key?: string | null;
   external_url?: string | null;
+  assignee?: string | null;
 }
 
 export type JiraDuplicateAction = "skip" | "include";
@@ -89,6 +90,7 @@ export interface JiraImportCandidate {
   url: string;
   issueType: string | null;
   status: string | null;
+  assignee: string | null;
   isDuplicate: boolean;
 }
 

@@ -490,6 +490,10 @@ router.post(
             external_key: externalKey,
             external_url:
               typeof issue.url === "string" ? issue.url.trim() || null : null,
+            assignee:
+              typeof issue.assignee === "string"
+                ? issue.assignee.trim() || null
+                : null,
           });
 
           return issues;

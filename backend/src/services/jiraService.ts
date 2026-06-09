@@ -21,6 +21,11 @@ interface JiraIssueResponse {
     status?: {
       name?: string;
     };
+    assignee?: {
+      displayName?: string;
+      name?: string;
+      emailAddress?: string;
+    } | null;
   };
 }
 
@@ -143,12 +148,20 @@ const toImportCandidate = (
   }
 
   const summary = issue.fields?.summary?.trim() || issue.key;
+  const assignee = issue.fields?.assignee;
+  const assigneeName =
+    assignee?.displayName?.trim() ||
+    assignee?.name?.trim() ||
+    assignee?.emailAddress?.trim() ||
+    null;
+
   return {
     key: issue.key,
     title: summary,
     url: `${normalizedSiteUrl}/browse/${encodeURIComponent(issue.key)}`,
     issueType: issue.fields?.issuetype?.name || null,
     status: issue.fields?.status?.name || null,
+    assignee: assigneeName,
   };
 };
 
@@ -203,7 +216,7 @@ const fetchJiraAgileSprintIssues = async ({
     );
     url.searchParams.set("startAt", String(startAt));
     url.searchParams.set("maxResults", String(maxResults));
-    url.searchParams.set("fields", "summary,issuetype,status");
+    url.searchParams.set("fields", "summary,issuetype,status,assignee");
 
     const response = await fetch(url, {
       headers: {
@@ -260,7 +273,7 @@ const fetchJiraSearchSprintIssues = async ({
     url.searchParams.set("jql", jql);
     url.searchParams.set("startAt", String(startAt));
     url.searchParams.set("maxResults", String(maxResults));
-    url.searchParams.set("fields", "summary,issuetype,status");
+    url.searchParams.set("fields", "summary,issuetype,status,assignee");
 
     const response = await fetch(url, {
       headers: {

@@ -201,6 +201,7 @@ export interface IssueRecord {
   source: string;
   external_key: string | null;
   external_url: string | null;
+  assignee: string | null;
 }
 
 /**
@@ -232,6 +233,7 @@ export interface ImportIssueInput {
   source?: string;
   external_key?: string | null;
   external_url?: string | null;
+  assignee?: string | null;
 }
 
 export interface JiraImportCandidate {
@@ -240,6 +242,7 @@ export interface JiraImportCandidate {
   url: string;
   issueType: string | null;
   status: string | null;
+  assignee: string | null;
   isDuplicate?: boolean;
 }
 

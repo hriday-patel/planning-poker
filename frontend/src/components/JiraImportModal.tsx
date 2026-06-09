@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ListChecks, Settings2 } from "lucide-react";
+import { ListChecks, Settings2, User } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import {
   JiraDuplicateAction,
@@ -593,6 +593,23 @@ export default function JiraImportModal({
                                         }}
                                       >
                                         {candidate.status}
+                                      </span>
+                                    )}
+                                    {candidate.assignee && (
+                                      <span
+                                        className="inline-flex min-w-0 items-center gap-1 text-xs font-medium"
+                                        style={{
+                                          color: "var(--text-secondary)",
+                                        }}
+                                        title={`Assigned to ${candidate.assignee}`}
+                                      >
+                                        <User
+                                          className="h-3 w-3 shrink-0"
+                                          aria-hidden="true"
+                                        />
+                                        <span className="truncate">
+                                          {candidate.assignee}
+                                        </span>
                                       </span>
                                     )}
                                   </span>

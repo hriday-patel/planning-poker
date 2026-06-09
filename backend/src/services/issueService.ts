@@ -314,6 +314,7 @@ export const importIssueRecords = async (
         source: (issue.source || "manual").trim() || "manual",
         external_key: issue.external_key?.trim() || null,
         external_url: issue.external_url?.trim() || null,
+        assignee: issue.assignee?.trim() || null,
       }))
       .filter(
         (issue) =>
@@ -355,9 +356,10 @@ export const importIssueRecords = async (
              display_order,
              source,
              external_key,
-             external_url
+             external_url,
+             assignee
            )
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
            RETURNING *`,
           [
             gameId,
@@ -368,6 +370,7 @@ export const importIssueRecords = async (
             issue.source,
             issue.external_key,
             issue.external_url,
+            issue.assignee,
           ],
         );
         createdIssues.push(result.rows[0] as IssueRecord);
