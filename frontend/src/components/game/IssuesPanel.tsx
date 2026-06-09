@@ -1,6 +1,6 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useRef } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useRef } from "react";
 import {
   FileUp,
   Link as LinkIcon,
@@ -77,6 +77,46 @@ export default function IssuesPanel({
   showAddIssueForm,
 }: IssuesPanelProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const issueRefs = useRef(new Map<string, HTMLDivElement>());
+  const previousIssueIdsRef = useRef<Set<string>>(new Set());
+  const isInitialIssuesRenderRef = useRef(true);
+
+  useEffect(() => {
+    const currentIssueIds = new Set(issues.map((issue) => issue.id));
+
+    if (isInitialIssuesRenderRef.current) {
+      isInitialIssuesRenderRef.current = false;
+      previousIssueIdsRef.current = currentIssueIds;
+      return;
+    }
+
+    const newlyAddedIssues = issues.filter(
+      (issue) => !previousIssueIdsRef.current.has(issue.id),
+    );
+    previousIssueIdsRef.current = currentIssueIds;
+
+    if (newlyAddedIssues.length === 0) {
+      return;
+    }
+
+    const newlyAddedIssueIds = new Set(
+      newlyAddedIssues.map((issue) => issue.id),
+    );
+    const lastNewIssue = [...issues]
+      .reverse()
+      .find((issue) => newlyAddedIssueIds.has(issue.id));
+
+    if (!lastNewIssue) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      issueRefs.current
+        .get(lastNewIssue.id)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  }, [issues]);
+
   const pendingCount = issues.filter(
     (issue) => issue.status === "pending",
   ).length;
@@ -267,6 +307,13 @@ export default function IssuesPanel({
                 return (
                   <div
                     key={issue.id}
+                    ref={(element) => {
+                      if (element) {
+                        issueRefs.current.set(issue.id, element);
+                      } else {
+                        issueRefs.current.delete(issue.id);
+                      }
+                    }}
                     className="rounded-lg border p-4 shadow-theme"
                     style={{
                       backgroundColor: isActiveIssue

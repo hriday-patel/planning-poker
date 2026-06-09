@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Edit3 } from "lucide-react";
 import { Button } from "@/components/ui";
 import { ModalShell, ModalHeader, ModalFooter } from "@/components/ui/Modal";
+import { formatDeckName, sortDeckValues } from "@/utils/deck";
 
 interface ChangeEstimateModalProps {
   isOpen: boolean;
@@ -49,7 +50,8 @@ export default function ChangeEstimateModal({
     }
   };
 
-  const cardCount = Math.max(deckValues.length, 1);
+  const sortedDeckValues = sortDeckValues(deckValues);
+  const cardCount = Math.max(sortedDeckValues.length, 1);
   const isLargeDeck = cardCount > 10;
   const isDenseDeck = cardCount > 13;
   const deckGapClass = isDenseDeck
@@ -68,7 +70,7 @@ export default function ChangeEstimateModal({
       <ModalHeader
         icon={Edit3}
         title="Change Estimate"
-        subtitle={`Select a card from ${deckName}`}
+        subtitle={`Select a card from ${formatDeckName(deckName)}`}
         onClose={onClose}
       />
 
@@ -101,7 +103,7 @@ export default function ChangeEstimateModal({
             gridTemplateColumns: `repeat(auto-fit, minmax(${isDenseDeck ? "3.5rem" : isLargeDeck ? "4.5rem" : "5.5rem"}, 1fr))`,
           }}
         >
-          {deckValues.map((value) => (
+          {sortedDeckValues.map((value) => (
             <div key={value} role="listitem" className="min-w-0">
               <button
                 type="button"

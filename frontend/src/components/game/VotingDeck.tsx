@@ -1,5 +1,7 @@
 "use client";
 
+import { formatDeckName, sortDeckValues } from "@/utils/deck";
+
 interface VotingDeckProps {
   canPickCards: boolean;
   deckName: string;
@@ -8,40 +10,6 @@ interface VotingDeckProps {
   selectedCard: string | null;
   onCardSelect: (value: string) => void;
 }
-
-/**
- * Sort deck values: numeric values in ascending order, then special characters
- */
-const sortDeckValues = (values: string[]): string[] => {
-  const numeric: { value: string; num: number }[] = [];
-  const special: string[] = [];
-
-  values.forEach((value) => {
-    const num = parseFloat(value);
-    if (!isNaN(num) && value.trim() === num.toString()) {
-      numeric.push({ value, num });
-    } else {
-      special.push(value);
-    }
-  });
-
-  // Sort numeric values by their numeric value
-  numeric.sort((a, b) => a.num - b.num);
-
-  // Combine: numeric first, then special characters
-  return [...numeric.map((item) => item.value), ...special];
-};
-
-/**
- * Format deck name for display
- */
-const formatDeckName = (name: string): string => {
-  // Check if it's a custom deck with generated name pattern (e.g., "Custom-guest_xxx-timestamp")
-  if (name.startsWith("Custom-")) {
-    return "Custom Deck";
-  }
-  return name;
-};
 
 export default function VotingDeck({
   canPickCards,
