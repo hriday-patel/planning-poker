@@ -2,7 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogIn, LogOut, Moon, Palette, Sun, UserRound } from "lucide-react";
+import {
+  LogIn,
+  LogOut,
+  Moon,
+  Palette,
+  Settings2,
+  Sun,
+  UserRound,
+} from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Avatar, Button } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
@@ -188,6 +196,23 @@ export default function HeaderProfileMenu({
               {theme === "dark" ? "Dark" : "Light"}
             </Button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              router.push("/settings/jira");
+            }}
+            className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-opacity hover:opacity-80"
+            role="menuitem"
+          >
+            <Settings2
+              className="h-4 w-4 shrink-0"
+              style={{ color: "var(--text-secondary)" }}
+              aria-hidden="true"
+            />
+            JIRA Settings
+          </button>
 
           <div
             className="my-1 border-t"

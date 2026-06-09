@@ -74,10 +74,13 @@ export interface Issue {
 export type JiraDuplicateAction = "skip" | "include";
 
 export interface JiraImportRequest {
-  siteUrl: string;
   email: string;
-  apiToken: string;
   sprintId: string;
+}
+
+export interface JiraSettings {
+  siteUrl: string;
+  hasApiToken: boolean;
 }
 
 export interface JiraImportCandidate {

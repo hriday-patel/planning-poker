@@ -2,6 +2,8 @@ import { JiraImportCandidate } from "../types/game.types";
 
 const DEFAULT_ALLOWED_JIRA_HOSTS = ["*.atlassian.net", "*.ibm.com"];
 
+export const DEFAULT_JIRA_SITE_URL = "https://jsw.ibm.com/secure/Dashboard.jspa";
+
 interface FetchJiraSprintIssuesParams {
   siteUrl: string;
   email: string;
@@ -74,7 +76,7 @@ const isAllowedJiraHost = (hostname: string): boolean => {
   );
 };
 
-const normalizeJiraSiteUrl = (siteUrl: string): string => {
+export const normalizeJiraSiteUrl = (siteUrl: string): string => {
   let parsedUrl: URL;
 
   try {

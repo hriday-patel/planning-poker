@@ -23,6 +23,7 @@ import {
   setVotingIssue,
 } from "../services/issueService";
 import { hasGamePermission } from "../services/gameService";
+import { getUserJiraCredentials } from "../services/userService";
 import { fetchJiraSprintIssues, JiraApiError } from "../services/jiraService";
 import { logger } from "../utils/logger";
 
@@ -30,14 +31,11 @@ const router = Router();
 const JIRA_SOURCE = "jira";
 
 const getJiraRequestFields = (body: any) => {
-  const siteUrl = typeof body.siteUrl === "string" ? body.siteUrl.trim() : "";
   const email = typeof body.email === "string" ? body.email.trim() : "";
-  const apiToken =
-    typeof body.apiToken === "string" ? body.apiToken.trim() : "";
   const sprintId =
     typeof body.sprintId === "string" ? body.sprintId.trim() : "";
 
-  return { siteUrl, email, apiToken, sprintId };
+  return { email, sprintId };
 };
 
 const handleIssueImportError = (res: Response, error: any): void => {
@@ -362,14 +360,12 @@ router.post(
       }
 
       const { gameId } = req.params;
-      const { siteUrl, email, apiToken, sprintId } = getJiraRequestFields(
-        req.body,
-      );
+      const { email, sprintId } = getJiraRequestFields(req.body);
 
-      if (!siteUrl || !email || !apiToken || !sprintId) {
+      if (!email || !sprintId) {
         res.status(400).json({
           success: false,
-          error: "Jira site, email, API token, and sprint ID are required",
+          error: "Email and sprint ID are required",
         });
         return;
       }
@@ -388,10 +384,21 @@ router.post(
         return;
       }
 
+      const jiraCredentials = await getUserJiraCredentials(authReq.userId);
+
+      if (!jiraCredentials?.apiToken) {
+        res.status(400).json({
+          success: false,
+          error:
+            "No JIRA API token saved. Add it in JIRA Settings from your profile menu first.",
+        });
+        return;
+      }
+
       const jiraIssues = await fetchJiraSprintIssues({
-        siteUrl,
+        siteUrl: jiraCredentials.siteUrl,
         email,
-        apiToken,
+        apiToken: jiraCredentials.apiToken,
         sprintId,
       });
       const existingKeys = await getExistingExternalIssueKeys(

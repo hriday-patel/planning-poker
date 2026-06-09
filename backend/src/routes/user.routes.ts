@@ -1,7 +1,16 @@
 import { Router, Request, Response } from "express";
-import { AuthenticatedRequest } from "../types/auth.types";
+import {
+  AuthenticatedRequest,
+  JiraSettingsUpdatePayload,
+} from "../types/auth.types";
 import { authenticate } from "../middleware/auth";
-import { updateUser, toUserSession } from "../services/userService";
+import {
+  updateUser,
+  toUserSession,
+  getUserJiraSettings,
+  updateUserJiraSettings,
+} from "../services/userService";
+import { JiraApiError, normalizeJiraSiteUrl } from "../services/jiraService";
 import { logger } from "../utils/logger";
 
 const router = Router();
@@ -68,6 +77,128 @@ router.patch(
       res.status(500).json({
         success: false,
         error: "Failed to update profile",
+      });
+      return;
+    }
+  },
+);
+
+/**
+ * GET /api/v1/users/me/jira-settings
+ * Get current user's Jira integration settings (token is never returned)
+ */
+router.get(
+  "/me/jira-settings",
+  authenticate as any,
+  async (req: Request, res: Response): Promise<void> => {
+    const authReq = req as AuthenticatedRequest;
+
+    try {
+      const settings = await getUserJiraSettings(authReq.userId!);
+
+      if (!settings) {
+        res.status(404).json({
+          success: false,
+          error: "User not found",
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        settings,
+      });
+      return;
+    } catch (error) {
+      logger.error("Error fetching Jira settings:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch JIRA settings",
+      });
+      return;
+    }
+  },
+);
+
+/**
+ * PUT /api/v1/users/me/jira-settings
+ * Update current user's Jira site URL and/or API token
+ */
+router.put(
+  "/me/jira-settings",
+  authenticate as any,
+  async (req: Request, res: Response): Promise<void> => {
+    const authReq = req as AuthenticatedRequest;
+
+    try {
+      const { siteUrl, apiToken } = req.body ?? {};
+      const updates: JiraSettingsUpdatePayload = {};
+
+      if (siteUrl !== undefined) {
+        if (typeof siteUrl !== "string" || !siteUrl.trim()) {
+          res.status(400).json({
+            success: false,
+            error: "Jira site URL is required",
+          });
+          return;
+        }
+
+        try {
+          normalizeJiraSiteUrl(siteUrl);
+        } catch (validationError) {
+          res.status(400).json({
+            success: false,
+            error:
+              validationError instanceof JiraApiError
+                ? validationError.message
+                : "Enter a valid Jira site URL",
+          });
+          return;
+        }
+
+        updates.siteUrl = siteUrl.trim();
+      }
+
+      if (apiToken !== undefined) {
+        if (typeof apiToken !== "string" || !apiToken.trim()) {
+          res.status(400).json({
+            success: false,
+            error: "JIRA API token cannot be empty",
+          });
+          return;
+        }
+
+        updates.apiToken = apiToken.trim();
+      }
+
+      if (updates.siteUrl === undefined && updates.apiToken === undefined) {
+        res.status(400).json({
+          success: false,
+          error: "Provide a Jira site URL or API token to update",
+        });
+        return;
+      }
+
+      const settings = await updateUserJiraSettings(authReq.userId!, updates);
+
+      if (!settings) {
+        res.status(404).json({
+          success: false,
+          error: "User not found",
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        settings,
+      });
+      return;
+    } catch (error) {
+      logger.error("Error updating Jira settings:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to update JIRA settings",
       });
       return;
     }

@@ -23,7 +23,11 @@ export default function SiteHeader() {
   const showLogo = pathname === "/" || pathname === "/login";
   const tagline = logoTaglines[pathname];
   const showFaqLink = pathname === "/";
-  const pageTitle = pathname === "/account" ? "My Account" : null;
+  const pageTitles: Record<string, string> = {
+    "/account": "My Account",
+    "/settings/jira": "JIRA Settings",
+  };
+  const pageTitle = pageTitles[pathname] ?? null;
 
   return (
     <nav

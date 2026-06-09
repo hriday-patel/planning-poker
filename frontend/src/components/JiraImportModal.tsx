@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { ListChecks } from "lucide-react";
+import { ListChecks, Settings2 } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 import {
   JiraDuplicateAction,
   JiraImportCandidate,
   JiraImportPreviewResponse,
   JiraImportRequest,
+  JiraSettings,
 } from "@/types/game.types";
 import {
   Alert,
@@ -31,9 +33,7 @@ interface JiraImportModalProps {
 }
 
 const emptyCredentials: JiraImportRequest = {
-  siteUrl: "",
   email: "",
-  apiToken: "",
   sprintId: "",
 };
 
@@ -54,6 +54,7 @@ export default function JiraImportModal({
   const [enabledIssueTypes, setEnabledIssueTypes] = useState<Set<string>>(
     new Set(),
   );
+  const [jiraSettings, setJiraSettings] = useState<JiraSettings | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -63,7 +64,26 @@ export default function JiraImportModal({
       setDuplicateAction("skip");
       setError(null);
       setEnabledIssueTypes(new Set());
+      return;
     }
+
+    const loadJiraSettings = async () => {
+      try {
+        const response = await apiFetch("/api/v1/users/me/jira-settings");
+
+        if (!response.ok) {
+          setJiraSettings(null);
+          return;
+        }
+
+        const data = await response.json();
+        setJiraSettings(data.settings ?? null);
+      } catch (_error) {
+        setJiraSettings(null);
+      }
+    };
+
+    void loadJiraSettings();
   }, [isOpen]);
 
   // Get all unique issue types from candidates
@@ -136,11 +156,9 @@ export default function JiraImportModal({
   const duplicateCount = filteredCandidates.filter(
     (candidate) => candidate.isDuplicate,
   ).length;
+  const hasSavedToken = jiraSettings?.hasApiToken ?? true;
   const formIsComplete = Boolean(
-    credentials.siteUrl.trim() &&
-    credentials.email.trim() &&
-    credentials.apiToken.trim() &&
-    credentials.sprintId.trim(),
+    credentials.email.trim() && credentials.sprintId.trim() && hasSavedToken,
   );
 
   const handlePreview = async (event: FormEvent<HTMLFormElement>) => {
@@ -299,26 +317,27 @@ export default function JiraImportModal({
       <div className="flex-1 space-y-5 overflow-y-auto p-5">
         {error && <Alert variant="danger">{error}</Alert>}
 
+        {jiraSettings && !jiraSettings.hasApiToken && (
+          <Alert variant="warning">
+            No JIRA API token saved.{" "}
+            <a
+              href="/settings/jira"
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold underline"
+            >
+              Add it in JIRA Settings
+            </a>{" "}
+            before importing.
+          </Alert>
+        )}
+
         <form
           id="jira-preview-form"
           onSubmit={handlePreview}
           className="space-y-4"
         >
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Jira site">
-              <Input
-                value={credentials.siteUrl}
-                onChange={(event) =>
-                  setCredentials((prev) => ({
-                    ...prev,
-                    siteUrl: event.target.value,
-                  }))
-                }
-                placeholder="https://jsw.ibm.com"
-                autoComplete="url"
-              />
-            </Field>
-
             <Field label="Email">
               <Input
                 value={credentials.email}
@@ -330,20 +349,6 @@ export default function JiraImportModal({
                 }
                 type="email"
                 autoComplete="email"
-              />
-            </Field>
-
-            <Field label="API token">
-              <Input
-                value={credentials.apiToken}
-                onChange={(event) =>
-                  setCredentials((prev) => ({
-                    ...prev,
-                    apiToken: event.target.value,
-                  }))
-                }
-                type="password"
-                autoComplete="off"
               />
             </Field>
 
@@ -360,6 +365,31 @@ export default function JiraImportModal({
               />
             </Field>
           </div>
+
+          {jiraSettings && (
+            <div
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs"
+              style={{
+                backgroundColor: "var(--surface-secondary)",
+                borderColor: "var(--border-subtle)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <span className="min-w-0 truncate">
+                Importing from{" "}
+                <span className="font-medium">{jiraSettings.siteUrl}</span>
+              </span>
+              <a
+                href="/settings/jira"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex shrink-0 items-center gap-1 font-medium underline"
+              >
+                <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
+                JIRA Settings
+              </a>
+            </div>
+          )}
         </form>
 
         {candidates.length > 0 && (

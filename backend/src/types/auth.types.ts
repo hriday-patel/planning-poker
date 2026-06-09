@@ -56,6 +56,8 @@ export interface UserRecord {
   avatar_url?: string;
   spectator_mode: boolean;
   theme_preference: string;
+  jira_site_url?: string | null;
+  jira_api_token_encrypted?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -64,6 +66,18 @@ export interface UserRecord {
 export interface UserUpdatePayload {
   spectator_mode?: boolean;
   theme_preference?: string;
+}
+
+// Per-user Jira integration settings exposed to the client
+export interface JiraSettings {
+  siteUrl: string;
+  hasApiToken: boolean;
+}
+
+// Payload accepted when updating Jira settings
+export interface JiraSettingsUpdatePayload {
+  siteUrl?: string;
+  apiToken?: string;
 }
 
 // Auth Service Response
