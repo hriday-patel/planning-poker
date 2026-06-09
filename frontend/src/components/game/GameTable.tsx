@@ -45,17 +45,23 @@ interface GameTableProps {
   onSkipIssue: () => void;
 }
 
-const clamp = (value: number, min: number, max: number) =>
-  Math.min(max, Math.max(min, value));
+type SeatSide = "top" | "bottom" | "left" | "right";
 
-const getPlayerPosition = (index: number, total: number) => {
-  if (total <= 1) return { left: 50, top: 80 };
+/**
+ * Distributes players across the four edges of the table. The horizontal
+ * edges (top/bottom) absorb most players while each side column holds up to
+ * three, so seats stay evenly spaced even in rooms of 15-20+ players.
+ */
+const getSeatCounts = (total: number) => {
+  if (total <= 0) {
+    return { top: 0, right: 0, bottom: 0, left: 0 };
+  }
 
-  const angle = -Math.PI / 2 + (index / total) * Math.PI * 2;
-  return {
-    left: clamp(50 + 34 * Math.cos(angle), 15, 85),
-    top: clamp(50 + 33 * Math.sin(angle), 16, 84),
-  };
+  const side = total >= 16 ? 3 : total >= 10 ? 2 : total >= 6 ? 1 : 0;
+  const remaining = total - side * 2;
+  const bottom = Math.ceil(remaining / 2);
+
+  return { top: remaining - bottom, right: side, bottom, left: side };
 };
 
 function SpectatorToggleButton({
@@ -99,6 +105,144 @@ function SpectatorToggleButton({
     >
       <Icon className="h-3.5 w-3.5" aria-hidden="true" />
     </button>
+  );
+}
+
+function PlayerVoteCard({
+  compact,
+  onToggleSpectator,
+  player,
+  revealedVote,
+  showSpectatorToggle,
+}: {
+  compact: boolean;
+  onToggleSpectator: () => void;
+  player: Player;
+  revealedVote: string | null;
+  showSpectatorToggle: boolean;
+}) {
+  return (
+    <div
+      aria-label={`${player.display_name}: ${
+        revealedVote
+          ? `voted ${revealedVote}`
+          : player.has_voted
+            ? "voted"
+            : "waiting"
+      }`}
+      className={`relative flex shrink-0 items-center justify-center rounded-lg border font-bold shadow-theme ${
+        compact ? "h-14 w-10 text-base" : "h-18 w-13 text-lg"
+      }`}
+      style={{
+        backgroundColor: revealedVote
+          ? "color-mix(in srgb, var(--success) 18%, var(--surface-primary))"
+          : player.has_voted
+            ? "color-mix(in srgb, var(--primary) 18%, var(--surface-primary))"
+            : "var(--surface-primary)",
+        borderColor: revealedVote
+          ? "var(--success)"
+          : player.has_voted
+            ? "var(--primary)"
+            : "var(--border-color)",
+        color: revealedVote ? "var(--success)" : "var(--text-primary)",
+      }}
+    >
+      {revealedVote ||
+        (player.has_voted ? (
+          <Check
+            className={compact ? "h-4 w-4" : "h-5 w-5"}
+            aria-hidden="true"
+          />
+        ) : (
+          ""
+        ))}
+      {showSpectatorToggle && (
+        <SpectatorToggleButton
+          isSpectator={player.is_spectator}
+          playerName={player.display_name}
+          onToggle={onToggleSpectator}
+        />
+      )}
+    </div>
+  );
+}
+
+function PlayerSeat({
+  canToggleSpectator,
+  compact,
+  isCurrentUser,
+  onToggleSpectator,
+  player,
+  revealedVote,
+  side,
+  status,
+}: {
+  canToggleSpectator: boolean;
+  compact: boolean;
+  isCurrentUser: boolean;
+  onToggleSpectator: () => void;
+  player: Player;
+  revealedVote: string | null;
+  side: SeatSide;
+  status: string;
+}) {
+  const card = (
+    <PlayerVoteCard
+      compact={compact}
+      player={player}
+      revealedVote={revealedVote}
+      showSpectatorToggle={canToggleSpectator}
+      onToggleSpectator={onToggleSpectator}
+    />
+  );
+
+  const nameBlock = (
+    <div
+      className={`flex min-w-0 flex-col ${
+        side === "left"
+          ? "flex-1 items-end text-right"
+          : side === "right"
+            ? "flex-1 items-start text-left"
+            : "w-full items-center text-center"
+      }`}
+      style={{
+        color: isCurrentUser ? "var(--primary)" : "var(--text-primary)",
+      }}
+    >
+      <span
+        className="w-full truncate text-xs font-semibold"
+        title={player.display_name}
+      >
+        {player.display_name}
+      </span>
+      <span className="text-[10px]" style={{ color: "var(--text-tertiary)" }}>
+        {status}
+      </span>
+    </div>
+  );
+
+  // Side seats lay out horizontally (name beside card) to stay shallow, so
+  // up to three of them fit next to the table without crowding it.
+  if (side === "left" || side === "right") {
+    return (
+      <div role="listitem" className="flex w-36 items-center gap-2">
+        {side === "right" && card}
+        {nameBlock}
+        {side === "left" && card}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      role="listitem"
+      className={`flex flex-col items-center gap-1.5 ${
+        compact ? "w-20" : "w-24"
+      }`}
+    >
+      {card}
+      {nameBlock}
+    </div>
   );
 }
 
@@ -151,6 +295,36 @@ export default function GameTable({
     return "Waiting";
   };
 
+  const seatCounts = getSeatCounts(players.length);
+  const rightStart = seatCounts.top;
+  const bottomStart = rightStart + seatCounts.right;
+  const leftStart = bottomStart + seatCounts.bottom;
+  // Clockwise seating: top row left-to-right, right column top-to-bottom,
+  // bottom row right-to-left, left column bottom-to-top.
+  const seatedPlayers: Record<SeatSide, Player[]> = {
+    top: players.slice(0, rightStart),
+    right: players.slice(rightStart, bottomStart),
+    bottom: players.slice(bottomStart, leftStart).reverse(),
+    left: players.slice(leftStart).reverse(),
+  };
+  // Shrink seats once the room gets crowded so 15-20 players stay visible.
+  const compactSeats = players.length > 10;
+  const rowGapClass = compactSeats ? "gap-x-2 gap-y-2" : "gap-x-3 gap-y-2";
+
+  const renderSeat = (player: Player, side: SeatSide) => (
+    <PlayerSeat
+      key={player.id}
+      canToggleSpectator={currentUserIsFacilitator}
+      compact={compactSeats}
+      isCurrentUser={player.id === currentUserId}
+      player={player}
+      revealedVote={revealedVotesByPlayerId.get(player.id) ?? null}
+      side={side}
+      status={getPlayerStatus(player)}
+      onToggleSpectator={() => onSetSpectatorMode(!player.is_spectator, player.id)}
+    />
+  );
+
   const statusTitle = hasRevealedResults
     ? "Round revealed"
     : activeIssue
@@ -166,7 +340,7 @@ export default function GameTable({
         : "Choose an issue";
 
   const statusDescription = hasRevealedResults
-    ? "Expand voting statistics below to review vote distribution and agreement."
+    ? null
     : activeIssue
       ? currentUserCanVote
         ? `${votedCount}/${eligiblePlayerCount} eligible players have voted.`
@@ -180,62 +354,38 @@ export default function GameTable({
 
   return (
     <section
-      aria-labelledby="game-table-heading"
+      aria-label="Game table"
       className="flex h-full min-h-0 flex-col overflow-hidden"
     >
       <header className="shrink-0 px-5 py-3 sm:px-8 sm:py-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p
-              className="text-xs font-semibold uppercase tracking-wide"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              Current issue
-            </p>
-            <h2
-              id="game-table-heading"
-              className="mt-1 max-w-4xl wrap-break-word text-xl font-semibold sm:text-2xl"
-            >
-              {activeIssue?.title || "Pick an issue to begin voting"}
-            </h2>
-          </div>
-          <div className="flex flex-wrap items-center gap-2" aria-live="polite">
-            <span
-              className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium"
-              style={{
-                borderColor: isConnected ? "var(--success)" : "var(--warning)",
-                color: isConnected ? "var(--success)" : "var(--warning)",
-              }}
-            >
-              <CircleDot className="h-3.5 w-3.5" aria-hidden="true" />
-              {isConnected ? "Connected" : "Connecting"}
-            </span>
-            <span
-              className="rounded-full px-3 py-1 text-sm font-medium"
-              style={{
-                backgroundColor: "var(--surface-secondary)",
-                color: "var(--text-secondary)",
-              }}
-            >
-              {votedCount}/{eligiblePlayerCount} players voted
-            </span>
-          </div>
+        <div
+          className="flex flex-wrap items-center justify-end gap-2"
+          aria-live="polite"
+        >
+          <span
+            className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium"
+            style={{
+              borderColor: isConnected ? "var(--success)" : "var(--warning)",
+              color: isConnected ? "var(--success)" : "var(--warning)",
+            }}
+          >
+            <CircleDot className="h-3.5 w-3.5" aria-hidden="true" />
+            {isConnected ? "Connected" : "Connecting"}
+          </span>
+          <span
+            className="rounded-full px-3 py-1 text-sm font-medium"
+            style={{
+              backgroundColor: "var(--surface-secondary)",
+              color: "var(--text-secondary)",
+            }}
+          >
+            {votedCount}/{eligiblePlayerCount} players voted
+          </span>
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 px-5 pb-5 sm:px-8 sm:pb-6">
-        <div className="relative min-h-0 flex-1 overflow-hidden">
-          <div
-            className="absolute left-1/2 top-1/2 h-[36%] max-h-64 min-h-36 w-[min(58%,520px)] -translate-x-1/2 -translate-y-1/2 rounded-4xl border"
-            style={{
-              background:
-                "linear-gradient(135deg, color-mix(in srgb, var(--primary) 28%, var(--surface-accent)) 0%, var(--surface-secondary) 100%)",
-              borderColor: "var(--border-strong)",
-              boxShadow:
-                "inset 0 1px 0 color-mix(in srgb, var(--text-on-accent) 18%, transparent), 0 28px 90px -64px var(--primary)",
-            }}
-          />
-
+        <div className="relative min-h-0 flex-1 overflow-auto">
           {isCountdownActive && (
             <div
               className="absolute inset-0 z-40 flex items-center justify-center"
@@ -270,140 +420,149 @@ export default function GameTable({
             </div>
           )}
 
-          {!isCountdownActive && (
-            <div className="absolute inset-0 z-20 box-border flex items-center justify-center p-4 sm:p-12">
-              <div
-                className="box-border w-full max-w-md px-2 text-center"
-                aria-live="polite"
-              >
+          <div className="flex min-h-full w-full">
+            <div className="m-auto grid w-full max-w-4xl grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-2 p-2">
+              {seatedPlayers.top.length > 0 && (
                 <div
-                  className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-lg"
+                  role="list"
+                  aria-label="Players seated at the top of the table"
+                  className={`col-start-1 col-end-4 row-start-1 hidden flex-wrap content-end items-end justify-center md:flex ${rowGapClass}`}
+                >
+                  {seatedPlayers.top.map((player) => renderSeat(player, "top"))}
+                </div>
+              )}
+
+              {seatedPlayers.left.length > 0 && (
+                <div
+                  role="list"
+                  aria-label="Players seated on the left side of the table"
+                  className="col-start-1 row-start-2 hidden flex-col items-end justify-center gap-2 md:flex"
+                >
+                  {seatedPlayers.left.map((player) =>
+                    renderSeat(player, "left"),
+                  )}
+                </div>
+              )}
+
+              <div className="col-start-2 row-start-2 flex items-center justify-center">
+                <div
+                  className="flex min-h-40 w-full max-w-lg items-center justify-center rounded-4xl border p-4 sm:p-5"
                   style={{
-                    backgroundColor: "var(--surface-primary)",
-                    color: "var(--primary)",
+                    background:
+                      "linear-gradient(135deg, color-mix(in srgb, var(--primary) 28%, var(--surface-accent)) 0%, var(--surface-secondary) 100%)",
+                    borderColor: "var(--border-strong)",
+                    boxShadow:
+                      "inset 0 1px 0 color-mix(in srgb, var(--text-on-accent) 18%, transparent), 0 28px 90px -64px var(--primary)",
                   }}
                 >
-                  <Users className="h-5 w-5" aria-hidden="true" />
-                </div>
-                <h3 className="text-xl font-semibold sm:text-2xl">
-                  {statusTitle}
-                </h3>
-                <p
-                  className="mt-2 text-sm"
-                  style={{ color: "var(--text-secondary)" }}
-                >
-                  {statusDescription}
-                </p>
-                {(canRevealCards || canRevote || canSkipIssue) && (
-                  <div className="mt-4 flex flex-wrap justify-center gap-2">
-                    {canRevealCards && (
-                      <Button
-                        type="button"
-                        onClick={onRevealCards}
-                        className="inline-flex max-w-full justify-center whitespace-nowrap"
-                      >
-                        Reveal cards
-                      </Button>
-                    )}
-                    {canRevote && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={onRevote}
-                        className="inline-flex max-w-full justify-center whitespace-nowrap"
-                      >
-                        <RotateCcw className="h-4 w-4" aria-hidden="true" />
-                        Revote
-                      </Button>
-                    )}
-                    {canSkipIssue && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={onSkipIssue}
-                        className="inline-flex max-w-full justify-center whitespace-nowrap"
-                      >
-                        <SkipForward className="h-4 w-4" aria-hidden="true" />
-                        Skip issue
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div role="list" aria-label="Players around the table">
-            {players.map((player, index) => {
-              const position = getPlayerPosition(index, players.length);
-              const revealedVote = revealedVotesByPlayerId.get(player.id);
-              const isCurrentUser = player.id === currentUserId;
-
-              return (
-                <div
-                  key={player.id}
-                  role="listitem"
-                  className="absolute z-30 hidden -translate-x-1/2 -translate-y-1/2 md:block"
-                  style={{ left: `${position.left}%`, top: `${position.top}%` }}
-                >
-                  <div className="flex flex-col items-center gap-2">
+                  {!isCountdownActive && (
                     <div
-                      aria-label={`${player.display_name}: ${revealedVote ? `voted ${revealedVote}` : player.has_voted ? "voted" : "waiting"}`}
-                      className="relative flex h-18 w-13 items-center justify-center rounded-lg border text-lg font-bold shadow-theme transition-transform"
-                      style={{
-                        backgroundColor: revealedVote
-                          ? "color-mix(in srgb, var(--success) 18%, var(--surface-primary))"
-                          : player.has_voted
-                            ? "color-mix(in srgb, var(--primary) 18%, var(--surface-primary))"
-                            : "var(--surface-primary)",
-                        borderColor: revealedVote
-                          ? "var(--success)"
-                          : player.has_voted
-                            ? "var(--primary)"
-                            : "var(--border-color)",
-                        color: revealedVote
-                          ? "var(--success)"
-                          : "var(--text-primary)",
-                      }}
+                      className="w-full max-w-md text-center"
+                      aria-live="polite"
                     >
-                      {revealedVote ||
-                        (player.has_voted ? (
-                          <Check className="h-5 w-5" aria-hidden="true" />
-                        ) : (
-                          ""
-                        ))}
-                      {currentUserIsFacilitator && (
-                        <SpectatorToggleButton
-                          isSpectator={player.is_spectator}
-                          playerName={player.display_name}
-                          onToggle={() =>
-                            onSetSpectatorMode(!player.is_spectator, player.id)
-                          }
-                        />
+                      {activeIssue && (
+                        <div className="mb-3">
+                          <p
+                            className="text-[10px] font-semibold uppercase tracking-wide"
+                            style={{ color: "var(--text-tertiary)" }}
+                          >
+                            Current issue
+                          </p>
+                          <h2
+                            className="mt-1 line-clamp-2 wrap-break-word text-base font-semibold sm:text-lg"
+                            title={activeIssue.title}
+                          >
+                            {activeIssue.title}
+                          </h2>
+                        </div>
+                      )}
+                      <div
+                        className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-lg"
+                        style={{
+                          backgroundColor: "var(--surface-primary)",
+                          color: "var(--primary)",
+                        }}
+                      >
+                        <Users className="h-4 w-4" aria-hidden="true" />
+                      </div>
+                      <h3 className="text-lg font-semibold sm:text-xl">
+                        {statusTitle}
+                      </h3>
+                      {statusDescription && (
+                        <p
+                          className="mt-1.5 text-sm"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          {statusDescription}
+                        </p>
+                      )}
+                      {(canRevealCards || canRevote || canSkipIssue) && (
+                        <div className="mt-3 flex flex-wrap justify-center gap-2">
+                          {canRevealCards && (
+                            <Button
+                              type="button"
+                              onClick={onRevealCards}
+                              className="inline-flex max-w-full justify-center whitespace-nowrap"
+                            >
+                              Reveal cards
+                            </Button>
+                          )}
+                          {canRevote && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={onRevote}
+                              className="inline-flex max-w-full justify-center whitespace-nowrap"
+                            >
+                              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                              Revote
+                            </Button>
+                          )}
+                          {canSkipIssue && (
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={onSkipIssue}
+                              className="inline-flex max-w-full justify-center whitespace-nowrap"
+                            >
+                              <SkipForward
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                              Skip issue
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </div>
-                    <div
-                      className="flex max-w-32 flex-col items-center px-2 py-1 text-center"
-                      style={{
-                        color: isCurrentUser
-                          ? "var(--primary)"
-                          : "var(--text-primary)",
-                      }}
-                    >
-                      <span className="max-w-24 truncate text-xs font-semibold">
-                        {player.display_name}
-                      </span>
-                      <span
-                        className="text-[10px]"
-                        style={{ color: "var(--text-tertiary)" }}
-                      >
-                        {getPlayerStatus(player)}
-                      </span>
-                    </div>
-                  </div>
+                  )}
                 </div>
-              );
-            })}
+              </div>
+
+              {seatedPlayers.right.length > 0 && (
+                <div
+                  role="list"
+                  aria-label="Players seated on the right side of the table"
+                  className="col-start-3 row-start-2 hidden flex-col items-start justify-center gap-2 md:flex"
+                >
+                  {seatedPlayers.right.map((player) =>
+                    renderSeat(player, "right"),
+                  )}
+                </div>
+              )}
+
+              {seatedPlayers.bottom.length > 0 && (
+                <div
+                  role="list"
+                  aria-label="Players seated at the bottom of the table"
+                  className={`col-start-1 col-end-4 row-start-3 hidden flex-wrap content-start items-start justify-center md:flex ${rowGapClass}`}
+                >
+                  {seatedPlayers.bottom.map((player) =>
+                    renderSeat(player, "bottom"),
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
