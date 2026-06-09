@@ -508,7 +508,7 @@ export default function GameTable({
           </div>
         ) : hasRevealedResults ? (
           <div
-            className="min-h-40 shrink-0 border-t pt-3"
+            className="min-h-48 shrink-0 border-t pt-4"
             style={{ borderColor: "var(--border-subtle)" }}
           >
             <VotingResultsPanel
