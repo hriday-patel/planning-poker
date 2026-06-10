@@ -186,6 +186,8 @@ function PlayerSeat({
   side: SeatSide;
   status: string;
 }) {
+  const isOffline = player.is_online === false;
+
   const card = (
     <PlayerVoteCard
       compact={compact}
@@ -225,7 +227,12 @@ function PlayerSeat({
   // up to three of them fit next to the table without crowding it.
   if (side === "left" || side === "right") {
     return (
-      <div role="listitem" className="flex w-36 items-center gap-2">
+      <div
+        role="listitem"
+        className={`flex w-36 items-center gap-2 ${
+          isOffline ? "opacity-50 grayscale" : ""
+        }`}
+      >
         {side === "right" && card}
         {nameBlock}
         {side === "left" && card}
@@ -238,7 +245,7 @@ function PlayerSeat({
       role="listitem"
       className={`flex flex-col items-center gap-1.5 ${
         compact ? "w-20" : "w-24"
-      }`}
+      } ${isOffline ? "opacity-50 grayscale" : ""}`}
     >
       {card}
       {nameBlock}
@@ -286,6 +293,7 @@ export default function GameTable({
   const isCountdownActive = showCountdown && countdownNumber > 0;
 
   const getPlayerStatus = (player: Player) => {
+    if (player.is_online === false) return "Disconnected";
     if (player.is_facilitator) return "Facilitator";
     if (player.is_spectator) return "Spectator";
     if (player.is_round_observer || player.can_vote === false) {
@@ -571,12 +579,15 @@ export default function GameTable({
             {players.map((player) => {
               const revealedVote = revealedVotesByPlayerId.get(player.id);
               const isCurrentUser = player.id === currentUserId;
+              const isOffline = player.is_online === false;
 
               return (
                 <div
                   key={player.id}
                   role="listitem"
-                  className="flex min-w-36 items-center gap-3 rounded-lg border px-3 py-2 shadow-theme"
+                  className={`flex min-w-36 items-center gap-3 rounded-lg border px-3 py-2 shadow-theme ${
+                    isOffline ? "opacity-50 grayscale" : ""
+                  }`}
                   style={{
                     backgroundColor: "var(--surface-primary)",
                     borderColor: isCurrentUser

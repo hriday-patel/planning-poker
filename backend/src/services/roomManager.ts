@@ -24,6 +24,15 @@ const parseCardValue = (value: string): number | null => {
  */
 const rooms = new Map<string, RoomState>();
 
+/**
+ * Pending grace-period removal timers for disconnected players,
+ * keyed by `${gameId}:${userId}`.
+ */
+const offlineRemovalTimers = new Map<string, NodeJS.Timeout>();
+
+const offlineTimerKey = (gameId: string, userId: string): string =>
+  `${gameId}:${userId}`;
+
 const clearPlayerRoundVote = (room: RoomState, userId: string): void => {
   if (!room.current_round) return;
 
@@ -72,13 +81,15 @@ export const addPlayerToRoom = async (
 
   const isFacilitator = game.facilitator_id === userId;
   const existingPlayer = room.players.get(userId);
+  // Room-level spectator state (toggled in-session) wins over the DB default
+  const isSpectator = existingPlayer?.is_spectator ?? user.spectator_mode;
 
   // Allow mid-round joining: users can vote immediately if they join during an active round
   // Add them to eligible voters if round is active and not revealed
   if (
     room.current_round &&
     !room.current_round.is_revealed &&
-    !user.spectator_mode &&
+    !isSpectator &&
     !room.current_round.eligible_voter_ids.has(userId)
   ) {
     room.current_round.eligible_voter_ids.add(userId);
@@ -91,11 +102,16 @@ export const addPlayerToRoom = async (
     display_name: user.display_name,
     avatar_url: user.avatar_url || null,
     is_facilitator: isFacilitator,
-    is_spectator: existingPlayer?.is_spectator ?? user.spectator_mode,
+    is_spectator: isSpectator,
     is_round_observer: false, // No longer mark as observer for mid-round joins
     observer_reason: null,
     joined_at: existingPlayer?.joined_at ?? new Date(),
+    is_online: true,
+    disconnected_at: null,
   });
+
+  // A (re)join cancels any pending offline cleanup for this player
+  cancelScheduledOfflineRemoval(gameId, userId);
 
   logger.info(`Player ${userId} joined room ${gameId}`);
 };
@@ -104,6 +120,8 @@ export const addPlayerToRoom = async (
  * Remove a player from a room
  */
 export const removePlayerFromRoom = (gameId: string, userId: string): void => {
+  cancelScheduledOfflineRemoval(gameId, userId);
+
   const room = rooms.get(gameId);
   if (!room) return;
 
@@ -120,6 +138,96 @@ export const removePlayerFromRoom = (gameId: string, userId: string): void => {
     rooms.delete(gameId);
     logger.info(`Room ${gameId} deleted (empty)`);
   }
+};
+
+/**
+ * Mark a player offline after a socket disconnect.
+ *
+ * Only applies when the disconnecting socket is still the player's current
+ * socket — a quick reconnect replaces socket_id first, and the stale
+ * disconnect of the old socket must not flip the freshly reconnected player
+ * back to offline.
+ *
+ * Returns true when the player was marked offline.
+ */
+export const markPlayerOffline = (
+  gameId: string,
+  userId: string,
+  socketId: string,
+): boolean => {
+  const room = rooms.get(gameId);
+  if (!room) return false;
+
+  const player = room.players.get(userId);
+  if (!player || player.socket_id !== socketId || !player.is_online) {
+    return false;
+  }
+
+  player.is_online = false;
+  player.disconnected_at = new Date();
+  logger.info(`Player ${userId} went offline in room ${gameId}`);
+  return true;
+};
+
+/**
+ * Schedule removal of a disconnected player once the grace period elapses.
+ * The timer is cancelled automatically when the player rejoins.
+ * `onRemoved` runs only if the player was still offline and got removed.
+ */
+export const schedulePlayerOfflineRemoval = (
+  gameId: string,
+  userId: string,
+  graceMs: number,
+  onRemoved: () => void,
+): void => {
+  const key = offlineTimerKey(gameId, userId);
+
+  const existingTimer = offlineRemovalTimers.get(key);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  const timer = setTimeout(() => {
+    offlineRemovalTimers.delete(key);
+
+    const player = rooms.get(gameId)?.players.get(userId);
+    if (!player || player.is_online) {
+      return;
+    }
+
+    removePlayerFromRoom(gameId, userId);
+    logger.info(
+      `Player ${userId} removed from room ${gameId} after offline grace period`,
+    );
+    onRemoved();
+  }, graceMs);
+
+  // Don't let pending cleanup timers keep the process alive
+  timer.unref?.();
+  offlineRemovalTimers.set(key, timer);
+};
+
+export const cancelScheduledOfflineRemoval = (
+  gameId: string,
+  userId: string,
+): void => {
+  const key = offlineTimerKey(gameId, userId);
+  const timer = offlineRemovalTimers.get(key);
+  if (timer) {
+    clearTimeout(timer);
+    offlineRemovalTimers.delete(key);
+  }
+};
+
+/**
+ * Get a player's own vote in the active round (null when they haven't voted).
+ * Used to restore the player's selection after a reconnect.
+ */
+export const getPlayerVote = (gameId: string, userId: string): string | null => {
+  const room = rooms.get(gameId);
+  if (!room?.current_round) return null;
+
+  return room.current_round.votes.get(userId) ?? null;
 };
 
 /**
@@ -252,8 +360,10 @@ export const startVotingRound = (
     player.observer_reason = null;
   });
 
+  // Disconnected players are not counted as voters for the new round; if
+  // they reconnect mid-round, the join flow makes them eligible again.
   const eligibleVoterIds = Array.from(room.players.values())
-    .filter((player) => !player.is_spectator)
+    .filter((player) => !player.is_spectator && player.is_online)
     .map((player) => player.user_id);
 
   room.current_round = {
@@ -661,7 +771,7 @@ export const getRoomState = async (gameId: string) => {
     is_spectator: p.is_spectator,
     is_round_observer: p.is_round_observer,
     observer_reason: p.observer_reason,
-    is_online: true,
+    is_online: p.is_online,
   }));
 
   // Build current round info

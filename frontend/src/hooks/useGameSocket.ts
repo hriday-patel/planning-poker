@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { io, Socket } from "socket.io-client";
+import { apiFetch } from "@/lib/api";
 
 // Development-only logger utility
 const logger = {
@@ -24,6 +25,7 @@ const logger = {
 export enum ClientEvents {
   JOIN_GAME = "JOIN_GAME",
   LEAVE_GAME = "LEAVE_GAME",
+  REQUEST_GAME_STATE = "REQUEST_GAME_STATE",
   SUBMIT_VOTE = "SUBMIT_VOTE",
   REVEAL_CARDS = "REVEAL_CARDS",
   SKIP_ISSUE = "SKIP_ISSUE",
@@ -220,7 +222,15 @@ interface UseGameSocketOptions {
   onNewRound?: (roundId: string, issueId: string | null) => void;
   onTimerTick?: (remainingSeconds: number) => void;
   onTimerEnded?: () => void;
+  /**
+   * Fired when the server reports this player's own vote in the active round
+   * (on join/rejoin/resync). `null` means no vote — the UI must clear any
+   * locally selected card that carried over from a previous round.
+   */
+  onSelfVoteSync?: (cardValue: string | null) => void;
 }
+
+const AUTH_ERROR_PATTERN = /auth|token|expired/i;
 
 export function useGameSocket(options: UseGameSocketOptions) {
   const {
@@ -235,6 +245,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
     onNewRound,
     onTimerTick,
     onTimerEnded,
+    onSelfVoteSync,
   } = options;
 
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -242,6 +253,8 @@ export function useGameSocket(options: UseGameSocketOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const socketRef = useRef<Socket | null>(null);
+  const lastSyncRequestAtRef = useRef(0);
+  const lastAuthRefreshAtRef = useRef(0);
 
   const normalizeVotingResults = useCallback((results: any): VotingResults => {
     const votes: Array<{
@@ -347,6 +360,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
     onNewRound,
     onTimerTick,
     onTimerEnded,
+    onSelfVoteSync,
   });
 
   // Update callbacks ref on every render
@@ -361,6 +375,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
       onNewRound,
       onTimerTick,
       onTimerEnded,
+      onSelfVoteSync,
     };
   });
 
@@ -382,10 +397,14 @@ export function useGameSocket(options: UseGameSocketOptions) {
     [],
   );
 
-  // Register all socket event handlers
+  // Register all socket event handlers. Returns a teardown function that
+  // removes the manager-level listeners (the manager is cached per URL and
+  // survives socket.close(), so listeners must not accumulate across mounts).
   const registerSocketEvents = useCallback(
     (socket: Socket) => {
-      // Connection events
+      // Connection events. "connect" fires on every successful (re)connection,
+      // so rejoining the room here resynchronizes the full game state after
+      // any disconnect (sleep, network drop, server restart).
       socket.on("connect", () => {
         logger.log("WebSocket connected:", socket.id);
         setIsConnected(true);
@@ -396,31 +415,75 @@ export function useGameSocket(options: UseGameSocketOptions) {
       socket.on("disconnect", (reason) => {
         logger.log("WebSocket disconnected:", reason);
         setIsConnected(false);
+
+        // Server-initiated disconnects are not retried automatically
+        if (reason === "io server disconnect") {
+          socket.connect();
+        }
       });
 
-      socket.on("reconnect_attempt", () => {
-        logger.log("Attempting to reconnect...");
+      socket.on("connect_error", (error: Error) => {
+        logger.error("WebSocket connect error:", error.message);
+
+        // If the access token expired while the machine was asleep, every
+        // reconnection attempt fails authentication. Refresh the session
+        // cookie, then let the reconnection loop retry with it.
+        if (!AUTH_ERROR_PATTERN.test(error.message)) {
+          return;
+        }
+
+        const now = Date.now();
+        if (now - lastAuthRefreshAtRef.current < 15_000) {
+          return;
+        }
+        lastAuthRefreshAtRef.current = now;
+
+        void apiFetch("/api/v1/auth/refresh", { method: "POST" })
+          .then((response) => {
+            if (response.ok && !socket.connected) {
+              logger.log("Session refreshed; reconnecting socket");
+              socket.connect();
+            }
+          })
+          .catch(() => {
+            // Refresh failed; the reconnection loop keeps retrying.
+          });
+      });
+
+      // Reconnection lifecycle events are emitted by the Manager
+      // (socket.io), not the Socket itself, in Socket.IO v4.
+      const manager = socket.io;
+
+      const handleReconnectAttempt = (attempt: number) => {
+        logger.log(`Attempting to reconnect... (attempt ${attempt})`);
         setIsReconnecting(true);
-      });
+      };
 
-      socket.on("reconnect", () => {
+      const handleReconnect = () => {
         logger.log("Reconnected successfully");
         setIsReconnecting(false);
-        socket.emit(ClientEvents.JOIN_GAME, { game_id: gameId });
-      });
+      };
 
-      socket.on("reconnect_failed", () => {
-        logger.error("Reconnection failed");
-        setIsReconnecting(false);
-        callbacksRef.current.onError?.("Failed to reconnect to game");
-      });
+      const handleReconnectError = (error: Error) => {
+        logger.error("Reconnection error:", error.message);
+      };
+
+      manager.on("reconnect_attempt", handleReconnectAttempt);
+      manager.on("reconnect", handleReconnect);
+      manager.on("reconnect_error", handleReconnectError);
 
       // Game state sync
-      socket.on(ServerEvents.GAME_STATE, (state: GameState) => {
+      socket.on(ServerEvents.GAME_STATE, (state: any) => {
         const normalizedState = normalizeGameState(state);
 
         logger.log("Game state synced:", normalizedState);
         setGameState(normalizedState);
+
+        // Personal state (join/resync) carries this player's own vote so the
+        // UI can restore it — or clear a stale selection from an old round.
+        if (state && Object.prototype.hasOwnProperty.call(state, "my_vote")) {
+          callbacksRef.current.onSelfVoteSync?.(state.my_vote ?? null);
+        }
       });
 
       // Player events
@@ -437,11 +500,30 @@ export function useGameSocket(options: UseGameSocketOptions) {
           logger.log("Player joined:", normalizedUser.display_name);
           updateGameState((prev) => {
             if (!prev) return prev;
+
+            // Rejoining player: refresh their seat and mark them online while
+            // preserving round state (has_voted/can_vote) until GAME_STATE syncs.
             if (
               prev.players.some((p) => p.user_id === normalizedUser.user_id)
             ) {
-              return prev;
+              return {
+                ...prev,
+                players: prev.players.map((p) =>
+                  p.user_id === normalizedUser.user_id
+                    ? {
+                        ...p,
+                        display_name: normalizedUser.display_name,
+                        avatar_url: normalizedUser.avatar_url,
+                        is_spectator: normalizedUser.is_spectator,
+                        is_round_observer: normalizedUser.is_round_observer,
+                        observer_reason: normalizedUser.observer_reason,
+                        is_online: true,
+                      }
+                    : p,
+                ),
+              };
             }
+
             return { ...prev, players: [...prev.players, normalizedUser] };
           });
           callbacksRef.current.onPlayerJoined?.(normalizedUser);
@@ -472,6 +554,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
           is_spectator?: boolean;
           is_round_observer?: boolean;
           observer_reason?: string | null;
+          is_online?: boolean;
         }) => {
           logger.log("Player updated:", data);
           updateGameState((prev) => {
@@ -489,6 +572,7 @@ export function useGameSocket(options: UseGameSocketOptions) {
                         data.is_round_observer ?? p.is_round_observer,
                       observer_reason:
                         data.observer_reason ?? p.observer_reason,
+                      is_online: data.is_online ?? p.is_online,
                     }
                   : p,
               ),
@@ -707,6 +791,12 @@ export function useGameSocket(options: UseGameSocketOptions) {
         logger.error("WebSocket error:", message);
         callbacksRef.current.onError?.(message);
       });
+
+      return () => {
+        manager.off("reconnect_attempt", handleReconnectAttempt);
+        manager.off("reconnect", handleReconnect);
+        manager.off("reconnect_error", handleReconnectError);
+      };
     },
     [gameId, normalizeGameState, normalizeVotingResults, updateGameState],
   );
@@ -752,20 +842,64 @@ export function useGameSocket(options: UseGameSocketOptions) {
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
+      // Never give up: a laptop can sleep for hours and must still
+      // reconnect on wake without a manual refresh.
+      reconnectionAttempts: Infinity,
+      timeout: 10000,
     });
 
     socketRef.current = newSocket;
     setSocket(newSocket);
 
     // Register all event handlers
-    registerSocketEvents(newSocket);
+    const teardownManagerEvents = registerSocketEvents(newSocket);
+
+    // System wake / network recovery detection. Timers are throttled while a
+    // tab is hidden or a machine sleeps, so reconnection can lag behind the
+    // wake-up. These events force an immediate reconnect — and when the
+    // socket survived (or we can't tell yet), a lightweight state resync so
+    // the UI never shows stale voting data.
+    const requestResync = () => {
+      const activeSocket = socketRef.current;
+      if (!activeSocket) return;
+
+      if (!activeSocket.connected) {
+        logger.log("Wake/network event: reconnecting socket");
+        activeSocket.connect();
+        return;
+      }
+
+      const now = Date.now();
+      if (now - lastSyncRequestAtRef.current < 3000) return;
+      lastSyncRequestAtRef.current = now;
+
+      logger.log("Wake/network event: requesting state resync");
+      activeSocket.emit(ClientEvents.REQUEST_GAME_STATE, { game_id: gameId });
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        requestResync();
+      }
+    };
+
+    window.addEventListener("online", requestResync);
+    window.addEventListener("focus", requestResync);
+    window.addEventListener("pageshow", requestResync);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // Cleanup on unmount
     return () => {
-      if (newSocket) {
-        newSocket.close();
-      }
+      window.removeEventListener("online", requestResync);
+      window.removeEventListener("focus", requestResync);
+      window.removeEventListener("pageshow", requestResync);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+
+      teardownManagerEvents();
+      // Socket instances are cached per namespace; drop our listeners so
+      // they don't stack up if this hook remounts.
+      newSocket.removeAllListeners();
+      newSocket.close();
     };
   }, [gameId, isAuthenticated, registerSocketEvents]);
 

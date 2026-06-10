@@ -14,6 +14,10 @@ export interface JoinGamePayload {
   user_id: string;
 }
 
+export interface RequestGameStatePayload {
+  game_id: string;
+}
+
 export interface LeaveGamePayload {
   game_id: string;
   user_id?: string;
@@ -225,6 +229,7 @@ export interface PlayerUpdatedPayload {
   is_spectator?: boolean;
   is_round_observer?: boolean;
   observer_reason?: string | null;
+  is_online?: boolean;
 }
 
 export interface FacilitatorChangedPayload {
@@ -257,6 +262,12 @@ export interface GameStatePayload {
     is_revealed: boolean;
   } | null;
   voting_results?: CardsRevealedPayload | null;
+  /**
+   * Present only on the personal GAME_STATE sent directly to a socket
+   * (join/resync). Carries that player's own current vote so the client can
+   * restore or clear its selection after a reconnect.
+   */
+  my_vote?: string | null;
 }
 
 /**
@@ -265,6 +276,7 @@ export interface GameStatePayload {
 export enum ClientEvents {
   JOIN_GAME = "JOIN_GAME",
   LEAVE_GAME = "LEAVE_GAME",
+  REQUEST_GAME_STATE = "REQUEST_GAME_STATE",
   SUBMIT_VOTE = "SUBMIT_VOTE",
   REVEAL_CARDS = "REVEAL_CARDS",
   SKIP_ISSUE = "SKIP_ISSUE",
@@ -339,6 +351,8 @@ export interface RoomState {
       is_round_observer: boolean;
       observer_reason?: string | null;
       joined_at: Date;
+      is_online: boolean;
+      disconnected_at: Date | null;
     }
   >;
   current_round: {

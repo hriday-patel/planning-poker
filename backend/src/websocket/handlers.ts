@@ -11,6 +11,7 @@ import {
   ServerEvents,
   JoinGamePayload,
   LeaveGamePayload,
+  RequestGameStatePayload,
   SubmitVotePayload,
   RevealCardsPayload,
   SkipIssuePayload,
@@ -29,7 +30,12 @@ import {
 import {
   addPlayerToRoom,
   removePlayerFromRoom,
+  getRoomPlayer,
+  getRoomPlayers,
   getRoomState,
+  getPlayerVote,
+  markPlayerOffline,
+  schedulePlayerOfflineRemoval,
   startVotingRound,
   submitVote,
   revealCards,
@@ -62,6 +68,58 @@ import { logger } from "../utils/logger";
 import { v4 as uuidv4 } from "uuid";
 
 /**
+ * How long a disconnected player keeps their seat (and vote) before being
+ * removed from the room. Reconnections within this window restore the player
+ * seamlessly; once it elapses the seat is freed so the round can proceed.
+ */
+const OFFLINE_REMOVAL_GRACE_MS =
+  Number(process.env.PLAYER_OFFLINE_GRACE_MS) > 0
+    ? Number(process.env.PLAYER_OFFLINE_GRACE_MS)
+    : 2 * 60 * 1000;
+
+/**
+ * Reveal cards when auto-reveal is enabled and every eligible voter has
+ * voted. Shared by vote submission and offline-player cleanup (removing a
+ * non-voter can complete the round).
+ */
+const autoRevealIfAllVoted = async (
+  io: SocketIOServer,
+  gameId: string,
+): Promise<void> => {
+  const gameState = await getRoomState(gameId);
+
+  if (
+    !gameState.game.auto_reveal ||
+    !gameState.current_round ||
+    gameState.current_round.is_revealed ||
+    !haveAllPlayersVoted(gameId)
+  ) {
+    return;
+  }
+
+  revealCards(gameId);
+  const results = calculateVotingResults(gameId);
+
+  if (results.issue_id) {
+    const updatedIssue = await completeIssueVotingRound(
+      gameId,
+      results.round_id,
+      results.issue_id,
+      results.final_estimate,
+      results.votes,
+    );
+
+    if (updatedIssue) {
+      io.to(gameId).emit(ServerEvents.ISSUE_UPDATED, {
+        issue: updatedIssue,
+      });
+    }
+  }
+
+  io.to(gameId).emit(ServerEvents.CARDS_REVEALED, results);
+};
+
+/**
  * Register all WebSocket event handlers
  */
 export const registerHandlers = (io: SocketIOServer) => {
@@ -70,7 +128,57 @@ export const registerHandlers = (io: SocketIOServer) => {
     const userId = authSocket.userId;
     const displayName = authSocket.displayName;
 
+    // Games this socket joined, so disconnects can update presence
+    const joinedGameIds = new Set<string>();
+
     logger.info(`Client connected: ${socket.id} (User: ${displayName})`);
+
+    /**
+     * Add the player to a room and sync state. Used for explicit joins and
+     * for automatic rejoins after a reconnect.
+     */
+    const joinGame = async (game_id: string): Promise<void> => {
+      await addGameParticipant(game_id, userId);
+
+      // Add player to room
+      await addPlayerToRoom(game_id, authSocket.id, userId);
+
+      // Join Socket.IO room
+      authSocket.join(game_id);
+      joinedGameIds.add(game_id);
+
+      const gameState = await getRoomState(game_id);
+      const joinedPlayer = gameState.players.find((p) => p.id === userId);
+
+      // Send current state to the joining player, including their own vote
+      // so a reconnecting client can restore or clear its selection.
+      authSocket.emit(ServerEvents.GAME_STATE, {
+        ...gameState,
+        my_vote: getPlayerVote(game_id, userId),
+      });
+
+      // Notify other players
+      authSocket.broadcast.to(game_id).emit(ServerEvents.PLAYER_JOINED, {
+        user: {
+          id: userId,
+          user_id: userId,
+          display_name: displayName,
+          avatar_url: joinedPlayer?.avatar_url || null,
+          is_facilitator: joinedPlayer?.is_facilitator || false,
+          is_spectator: joinedPlayer?.is_spectator || false,
+          is_round_observer: joinedPlayer?.is_round_observer || false,
+          observer_reason: joinedPlayer?.observer_reason || null,
+          is_online: true,
+        },
+      });
+
+      io.to(game_id).emit(
+        ServerEvents.GAME_STATE,
+        await getRoomState(game_id),
+      );
+
+      logger.info(`User ${userId} joined game ${game_id}`);
+    };
 
     /**
      * JOIN_GAME - Player joins a game room
@@ -79,49 +187,11 @@ export const registerHandlers = (io: SocketIOServer) => {
       try {
         const { game_id } = payload;
 
-        await addGameParticipant(game_id, userId);
+        if (!game_id) {
+          throw new Error("Game ID is required");
+        }
 
-        // Add player to room
-        await addPlayerToRoom(game_id, authSocket.id, userId);
-
-        // Join Socket.IO room
-        authSocket.join(game_id);
-
-        const gameState = await getRoomState(game_id);
-
-        // Send current state to the joining player
-        authSocket.emit(ServerEvents.GAME_STATE, gameState);
-
-        // Notify other players
-        authSocket.broadcast.to(game_id).emit(ServerEvents.PLAYER_JOINED, {
-          user: {
-            id: userId,
-            user_id: userId,
-            display_name: displayName,
-            avatar_url:
-              gameState.players.find((p) => p.id === userId)?.avatar_url ||
-              null,
-            is_facilitator:
-              gameState.players.find((p) => p.id === userId)?.is_facilitator ||
-              false,
-            is_spectator:
-              gameState.players.find((p) => p.id === userId)?.is_spectator ||
-              false,
-            is_round_observer:
-              gameState.players.find((p) => p.id === userId)
-                ?.is_round_observer || false,
-            observer_reason:
-              gameState.players.find((p) => p.id === userId)?.observer_reason ||
-              null,
-          },
-        });
-
-        io.to(game_id).emit(
-          ServerEvents.GAME_STATE,
-          await getRoomState(game_id),
-        );
-
-        logger.info(`User ${userId} joined game ${game_id}`);
+        await joinGame(game_id);
       } catch (error: any) {
         logger.error("Error joining game:", error);
         authSocket.emit(ServerEvents.ERROR, {
@@ -129,6 +199,43 @@ export const registerHandlers = (io: SocketIOServer) => {
         });
       }
     });
+
+    /**
+     * REQUEST_GAME_STATE - Lightweight resync for an already-joined player
+     * (e.g. when the tab wakes from sleep). Falls back to a full rejoin when
+     * the seat no longer exists (server restart or offline cleanup).
+     */
+    authSocket.on(
+      ClientEvents.REQUEST_GAME_STATE,
+      async (payload: RequestGameStatePayload) => {
+        try {
+          const { game_id } = payload;
+
+          if (!game_id) {
+            throw new Error("Game ID is required");
+          }
+
+          const player = getRoomPlayer(game_id, userId);
+          if (!player || player.socket_id !== authSocket.id) {
+            await joinGame(game_id);
+            return;
+          }
+
+          authSocket.join(game_id);
+          joinedGameIds.add(game_id);
+
+          authSocket.emit(ServerEvents.GAME_STATE, {
+            ...(await getRoomState(game_id)),
+            my_vote: getPlayerVote(game_id, userId),
+          });
+        } catch (error: any) {
+          logger.error("Error refreshing game state:", error);
+          authSocket.emit(ServerEvents.ERROR, {
+            message: error.message || "Failed to refresh game state",
+          });
+        }
+      },
+    );
 
     /**
      * LEAVE_GAME - Player leaves a game room
@@ -175,6 +282,7 @@ export const registerHandlers = (io: SocketIOServer) => {
 
           // Leave Socket.IO room
           authSocket.leave(game_id);
+          joinedGameIds.delete(game_id);
 
           if (facilitatorChangedTo) {
             io.to(game_id).emit(ServerEvents.FACILITATOR_CHANGED, {
@@ -231,30 +339,7 @@ export const registerHandlers = (io: SocketIOServer) => {
           });
 
           // Check if all players have voted and auto-reveal is enabled
-          const gameState = await getRoomState(gameId);
-          if (gameState.game.auto_reveal && haveAllPlayersVoted(gameId)) {
-            // Auto-reveal cards
-            revealCards(gameId);
-            const results = calculateVotingResults(gameId);
-
-            if (results.issue_id) {
-              const updatedIssue = await completeIssueVotingRound(
-                gameId,
-                results.round_id,
-                results.issue_id,
-                results.final_estimate,
-                results.votes,
-              );
-
-              if (updatedIssue) {
-                io.to(gameId).emit(ServerEvents.ISSUE_UPDATED, {
-                  issue: updatedIssue,
-                });
-              }
-            }
-
-            io.to(gameId).emit(ServerEvents.CARDS_REVEALED, results);
-          }
+          await autoRevealIfAllVoted(io, gameId);
 
           logger.info(`Vote state changed by ${userId} in game ${gameId}`);
         } catch (error: any) {
@@ -775,12 +860,58 @@ export const registerHandlers = (io: SocketIOServer) => {
 
     /**
      * DISCONNECT - Handle disconnection
+     *
+     * The player keeps their seat (and vote) so a reconnect within the grace
+     * period restores them seamlessly. Other players immediately see them as
+     * offline. If they don't return in time, the seat is cleaned up so the
+     * round can proceed without them.
      */
     authSocket.on("disconnect", () => {
       logger.info(`Client disconnected: ${socket.id} (User: ${displayName})`);
-      // Note: We don't automatically remove from rooms on disconnect
-      // to allow reconnection. Cleanup happens on explicit LEAVE_GAME
-      // or after a timeout period.
+
+      joinedGameIds.forEach((gameId) => {
+        const wentOffline = markPlayerOffline(gameId, userId, authSocket.id);
+        if (!wentOffline) {
+          return;
+        }
+
+        io.to(gameId).emit(ServerEvents.PLAYER_UPDATED, {
+          user_id: userId,
+          is_online: false,
+        });
+
+        schedulePlayerOfflineRemoval(
+          gameId,
+          userId,
+          OFFLINE_REMOVAL_GRACE_MS,
+          () => {
+            void (async () => {
+              try {
+                await markGameParticipantInactive(gameId, userId);
+
+                io.to(gameId).emit(ServerEvents.PLAYER_LEFT, {
+                  user_id: userId,
+                });
+
+                if (getRoomPlayers(gameId).length > 0) {
+                  io.to(gameId).emit(
+                    ServerEvents.GAME_STATE,
+                    await getRoomState(gameId),
+                  );
+
+                  // Removing a non-voter may complete the round
+                  await autoRevealIfAllVoted(io, gameId);
+                }
+              } catch (error) {
+                logger.error(
+                  `Error cleaning up offline player ${userId} in game ${gameId}:`,
+                  error,
+                );
+              }
+            })();
+          },
+        );
+      });
     });
   });
 };

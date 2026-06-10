@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { LogOut, Pencil, TimerReset } from "lucide-react";
 import {
@@ -124,12 +124,24 @@ export default function GameRoomPage() {
     string | null
   >(null);
   const lastRevealedRoundKeyRef = useRef<string | null>(null);
+  // undefined = no server state synced yet; null = synced, no active round
+  const lastSyncedRoundIdRef = useRef<string | null | undefined>(undefined);
+  const countdownIntervalRef = useRef<number | null>(null);
   const [selectedLeaveFacilitator, setSelectedLeaveFacilitator] = useState("");
   const [leaveError, setLeaveError] = useState<string | null>(null);
   const [isLeaving, setIsLeaving] = useState(false);
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  const clearCountdownInterval = useCallback(() => {
+    if (countdownIntervalRef.current !== null) {
+      window.clearInterval(countdownIntervalRef.current);
+      countdownIntervalRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearCountdownInterval, [clearCountdownInterval]);
 
   useEffect(() => {
     setActiveGameSession(gameId);
@@ -210,13 +222,14 @@ export default function GameRoomPage() {
       setShowCountdown(true);
       setCountdownNumber(3);
 
+      clearCountdownInterval();
       let nextCount = 3;
-      const countdownInterval = window.setInterval(() => {
+      countdownIntervalRef.current = window.setInterval(() => {
         nextCount -= 1;
         setCountdownNumber(nextCount);
 
         if (nextCount <= 0) {
-          window.clearInterval(countdownInterval);
+          clearCountdownInterval();
           setVotingResults(results);
           setShowStatisticsPanel(true);
           window.setTimeout(() => setShowCountdown(false), 220);
@@ -265,6 +278,21 @@ export default function GameRoomPage() {
     onTimerEnded: () => {
       setTimerAlert(false);
     },
+    onSelfVoteSync: (cardValue) => {
+      // Server truth for our own vote in the active round (sent on
+      // join/rejoin/resync). Restores the selection after a reconnect and
+      // clears stale selections carried over from a previous round.
+      setGameState((prev) => ({
+        ...prev,
+        selectedCard: cardValue,
+        votingPhase:
+          prev.votingPhase === VotingPhase.REVEALED
+            ? prev.votingPhase
+            : cardValue
+              ? VotingPhase.VOTING
+              : VotingPhase.WAITING,
+      }));
+    },
   });
 
   useEffect(() => {
@@ -311,6 +339,40 @@ export default function GameRoomPage() {
       isLoading: false,
     }));
   }, [wsGameState, gameState.selectedCard, currentUserId]);
+
+  // Reset per-round UI state whenever the server round changes. Round
+  // transitions normally arrive as NEW_ROUND_STARTED / ISSUE_SKIPPED events,
+  // but a player who was disconnected misses those — this catches the change
+  // through the full GAME_STATE resync so old votes and selected cards never
+  // leak into the new round.
+  useEffect(() => {
+    if (!wsGameState) {
+      return;
+    }
+
+    const roundId = wsGameState.current_round?.id ?? null;
+
+    if (lastSyncedRoundIdRef.current === undefined) {
+      lastSyncedRoundIdRef.current = roundId;
+      return;
+    }
+
+    if (lastSyncedRoundIdRef.current === roundId) {
+      return;
+    }
+
+    lastSyncedRoundIdRef.current = roundId;
+    clearCountdownInterval();
+    setVotingResults(null);
+    setShowCountdown(false);
+    setCountdownNumber(3);
+    setOriginalCalculatedEstimate(null);
+    setGameState((prev) => ({
+      ...prev,
+      selectedCard: null,
+      votingPhase: VotingPhase.WAITING,
+    }));
+  }, [wsGameState, clearCountdownInterval]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -983,17 +1045,6 @@ export default function GameRoomPage() {
     window.setTimeout(() => router.push("/"), 120);
   };
 
-  if (isReconnecting) {
-    return (
-      <PageShell className="flex items-center justify-center transition-colors">
-        <div className="flex items-center gap-3 text-lg font-semibold">
-          <TimerReset className="h-5 w-5 animate-spin" />
-          Reconnecting to game...
-        </div>
-      </PageShell>
-    );
-  }
-
   if (gameState.isLoading) {
     return (
       <PageShell className="flex items-center justify-center transition-colors">
@@ -1030,6 +1081,28 @@ export default function GameRoomPage() {
 
   return (
     <PageShell className="flex h-screen flex-col overflow-hidden transition-colors">
+      {!isConnected && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="pointer-events-none fixed left-1/2 top-20 z-50 -translate-x-1/2"
+        >
+          <div
+            className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold shadow-theme-strong"
+            style={{
+              backgroundColor: "var(--surface-primary)",
+              borderColor: "var(--warning)",
+              color: "var(--warning)",
+            }}
+          >
+            <TimerReset className="h-4 w-4 animate-spin" aria-hidden="true" />
+            {isReconnecting
+              ? "Reconnecting to game..."
+              : "Connection lost - reconnecting..."}
+          </div>
+        </div>
+      )}
+
       <div className="shrink-0">
         <GameTopBar
           gameName={gameState.game.name}
