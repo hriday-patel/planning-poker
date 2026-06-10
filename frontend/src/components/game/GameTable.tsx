@@ -420,18 +420,17 @@ export default function GameTable({
 
               <div className="col-start-2 row-start-2 flex items-center justify-center">
                 <div
-                  className="relative flex min-h-40 w-full max-w-lg items-center justify-center rounded-4xl border p-4 sm:p-5"
+                  className="relative flex min-h-40 w-full max-w-lg items-center justify-center rounded-[18px] border p-4 sm:p-5"
                   style={{
-                    background:
-                      "linear-gradient(135deg, color-mix(in srgb, var(--primary) 28%, var(--surface-accent)) 0%, var(--surface-secondary) 100%)",
+                    backgroundColor: "var(--border-strong)",
                     borderColor: "var(--border-strong)",
                     boxShadow:
-                      "inset 0 1px 0 color-mix(in srgb, var(--text-on-accent) 18%, transparent), 0 28px 90px -64px var(--primary)",
+                      "inset 0 1px 0 color-mix(in srgb, var(--text-on-accent) 18%, transparent), 0 7px 20px -16px var(--primary)",
                   }}
                 >
                   {isCountdownActive && (
                     <div
-                      className="absolute inset-0 z-10 flex items-center justify-center rounded-4xl"
+                      className="absolute inset-0 z-10 flex items-center justify-center rounded-[18px]"
                       aria-live="assertive"
                       role="status"
                       style={{
