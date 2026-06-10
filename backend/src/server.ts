@@ -96,6 +96,16 @@ configurePassport();
 
 const app: Application = express();
 
+// Dev tunnels and reverse proxies send X-Forwarded-* headers. Express must trust
+// them so rate limiting and req.ip work correctly behind a proxy.
+const trustProxySetting = process.env.TRUST_PROXY;
+if (
+  trustProxySetting === "true" ||
+  (trustProxySetting !== "false" && process.env.NODE_ENV !== "production")
+) {
+  app.set("trust proxy", 1);
+}
+
 const useHttps = process.env.LOCAL_HTTPS === "true";
 const certDirectory = path.join(__dirname, "../certs");
 const keyPath = path.join(certDirectory, "localhost-key.pem");
@@ -152,9 +162,25 @@ const parseAllowedOrigins = (): string[] => {
 
 const allowedOrigins = parseAllowedOrigins();
 const corsCredentials = process.env.CORS_CREDENTIALS !== "false";
+const isDevTunnelOrigin = (origin: string): boolean => {
+  try {
+    return /\.devtunnels\.ms$/i.test(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+};
+
 const expressCorsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    if (
+      process.env.NODE_ENV !== "production" &&
+      isDevTunnelOrigin(origin)
+    ) {
       callback(null, true);
       return;
     }
@@ -164,11 +190,37 @@ const expressCorsOptions: cors.CorsOptions = {
   credentials: corsCredentials,
 };
 
+const isOriginAllowed = (origin: string | undefined): boolean => {
+  if (!origin || allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  return (
+    process.env.NODE_ENV !== "production" && isDevTunnelOrigin(origin)
+  );
+};
+
 const io = new SocketIOServer(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`Origin ${origin} is not allowed by CORS`));
+    },
     credentials: corsCredentials,
   },
+});
+
+// Must run after Socket.IO attaches so this executes before engine.io routing.
+// Proxies such as Next.js Dev Tunnels may request `/socket.io?...` without the
+// trailing slash that engine.io expects (`/socket.io/?...`).
+server.prependListener("request", (req) => {
+  if (req.url?.startsWith("/socket.io?")) {
+    req.url = `/socket.io/${req.url.slice("/socket.io".length)}`;
+  }
 });
 
 app.set("io", io);

@@ -13,6 +13,7 @@ import {
 } from "../middleware/rateLimiter";
 import {
   createGuestSession,
+  generateGuestDisplayName,
   isGuestUser,
   updateGuestDisplayName,
 } from "../services/guestService";
@@ -56,9 +57,12 @@ router.post(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const { displayName } = req.body;
+      const resolvedDisplayName =
+        typeof displayName === "string" && displayName.trim()
+          ? displayName.trim()
+          : generateGuestDisplayName();
 
-      // Create guest session
-      const { user, tokens } = await createGuestSession(displayName);
+      const { user, tokens } = await createGuestSession(resolvedDisplayName);
 
       setAuthCookies(res, tokens);
 
@@ -97,21 +101,12 @@ router.post(
         typeof req.body.displayName === "string"
           ? req.body.displayName.trim()
           : "";
-
-      // Validate display name is provided
-      if (!requestedDisplayName) {
-        res.status(400).json({
-          success: false,
-          error: "Display name is required",
-        });
-        return;
-      }
+      const displayName =
+        requestedDisplayName || generateGuestDisplayName();
 
       // If no user is authenticated, create a guest session
       if (!userId) {
-        const { user, tokens } = await createGuestSession(
-          requestedDisplayName,
-        );
+        const { user, tokens } = await createGuestSession(displayName);
         userId = user.userId;
         isNewGuest = true;
 
@@ -210,21 +205,12 @@ router.post(
         typeof req.body.displayName === "string"
           ? req.body.displayName.trim()
           : "";
-
-      // Validate display name is provided
-      if (!requestedDisplayName) {
-        res.status(400).json({
-          success: false,
-          error: "Display name is required",
-        });
-        return;
-      }
+      const displayName =
+        requestedDisplayName || generateGuestDisplayName();
 
       // If no user is authenticated, create a guest session
       if (!userId) {
-        const { user, tokens } = await createGuestSession(
-          requestedDisplayName,
-        );
+        const { user, tokens } = await createGuestSession(displayName);
         userId = user.userId;
         isNewGuest = true;
 

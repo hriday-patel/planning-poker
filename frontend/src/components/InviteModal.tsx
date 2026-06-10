@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Check, Copy, Link2, Mail, Users } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { resolveInviteUrl } from "@/lib/inviteUrl";
 import {
   Alert,
   Button,
@@ -51,7 +52,10 @@ export default function InviteModal({ gameId, onClose }: InviteModalProps) {
           );
         }
 
-        setInvite(data.invite);
+        setInvite({
+          ...data.invite,
+          inviteUrl: resolveInviteUrl(gameId, data.invite.inviteUrl),
+        });
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Failed to generate invite link",

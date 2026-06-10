@@ -715,10 +715,39 @@ export function useGameSocket(options: UseGameSocketOptions) {
   useEffect(() => {
     if (!gameId || !isAuthenticated) return;
 
-    const serverUrl =
-      process.env.NEXT_PUBLIC_WS_URL || "https://localhost:3002";
+    const resolveSocketUrl = (): string => {
+      const configuredUrl =
+        process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3002";
+
+      if (typeof window === "undefined") {
+        return configuredUrl;
+      }
+
+      try {
+        const configuredHost = new URL(configuredUrl).hostname;
+        const pageHost = window.location.hostname;
+
+        // When the app is opened via a forwarded URL (e.g. Dev Tunnels) but WS
+        // still points at localhost, connect through the same origin so Next.js
+        // can proxy /socket.io to the backend.
+        if (
+          (configuredHost === "localhost" || configuredHost === "127.0.0.1") &&
+          pageHost !== "localhost" &&
+          pageHost !== "127.0.0.1"
+        ) {
+          return window.location.origin;
+        }
+      } catch {
+        // Fall back to configured URL.
+      }
+
+      return configuredUrl;
+    };
+
+    const serverUrl = resolveSocketUrl();
 
     const newSocket = io(serverUrl, {
+      path: "/socket.io/",
       withCredentials: true,
       reconnection: true,
       reconnectionDelay: 1000,
