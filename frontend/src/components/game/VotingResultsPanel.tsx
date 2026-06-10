@@ -218,8 +218,7 @@ export default function VotingResultsPanel({
                         className="h-full rounded-full"
                         style={{
                           width: `${lineWidth}%`,
-                          background:
-                            "linear-gradient(90deg, var(--primary), var(--accent))",
+                          backgroundColor: "var(--primary)",
                         }}
                       />
                     </div>

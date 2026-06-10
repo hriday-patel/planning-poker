@@ -86,7 +86,7 @@ export default function SiteHeader() {
           {showFaqLink && (
             <Link
               href="/faq"
-              className="rounded-lg px-3 py-2 text-sm font-medium transition-colors hover:opacity-80"
+              className="relative px-1 py-2 text-sm font-medium after:absolute after:bottom-0 after:left-0 after:h-[1.5px] after:w-0 after:bg-[var(--primary)] after:transition-all hover:after:w-full"
               style={{ color: "var(--text-secondary)" }}
             >
               FAQs

@@ -89,9 +89,9 @@ export default function GameTopBar({
             <div
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg"
               style={{
-                background:
-                  "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
-                color: "var(--text-on-accent)",
+                backgroundColor: "var(--surface-accent)",
+                color: "var(--primary)",
+                border: "1px solid var(--border-color)",
               }}
             >
               <ListChecks className="h-5 w-5" aria-hidden="true" />

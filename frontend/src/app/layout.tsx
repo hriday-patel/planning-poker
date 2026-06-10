@@ -1,10 +1,22 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { DM_Sans, Sora } from "next/font/google";
 import "../styles/globals.css";
 import AppShell from "@/components/AppShell";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 
-const inter = Inter({ subsets: ["latin"] });
+const sora = Sora({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+});
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  variable: "--font-body",
+  weight: ["400", "500", "600"],
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Planning Poker - Sprint Estimation Tool",
@@ -26,7 +38,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={`${sora.variable} ${dmSans.variable} font-body`}>
         <ThemeProvider>
           <AppShell>{children}</AppShell>
         </ThemeProvider>

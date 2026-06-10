@@ -22,6 +22,8 @@
     0 8px 30px rgba(15, 23, 42, 0.18), 0 2px 10px rgba(15, 23, 42, 0.08);
   --radius-control: 0.5rem;
   --radius-surface: 0.5rem;
+  --font-family-body: var(--font-body);
+  --font-family-display: var(--font-display);
 }
 
 /* =========================
@@ -140,21 +142,23 @@
   html,
   body {
     min-height: 100%;
+    font-family: var(--font-body);
   }
 
   html {
     background: var(--bg-primary);
   }
 
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
   body {
     margin: 0;
-    background:
-      radial-gradient(
-        circle at top,
-        color-mix(in srgb, var(--primary) 10%, transparent),
-        transparent 28%
-      ),
-      var(--bg-primary);
+    background: var(--bg-primary);
     color: var(--text-primary);
     transition:
       background-color 0.25s ease,

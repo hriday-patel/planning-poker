@@ -158,17 +158,23 @@ export default function Home() {
               </Button>
             </div>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:gap-6">
               {proofPoints.map(([title, description]) => (
-                <Card key={title} className="p-4" variant="secondary">
-                  <p className="font-semibold">{title}</p>
-                  <p
-                    className="mt-1 text-sm leading-6"
-                    style={{ color: "var(--text-tertiary)" }}
-                  >
-                    {description}
-                  </p>
-                </Card>
+                <div
+                  key={title}
+                  className="flex items-start gap-3 border-l-2 pl-3"
+                  style={{ borderColor: "var(--primary)" }}
+                >
+                  <div>
+                    <p className="text-sm font-semibold">{title}</p>
+                    <p
+                      className="mt-0.5 text-xs"
+                      style={{ color: "var(--text-tertiary)" }}
+                    >
+                      {description}
+                    </p>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -216,9 +222,9 @@ export default function Home() {
                   <div
                     className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold"
                     style={{
-                      backgroundColor:
-                        index === 1 ? "var(--accent)" : "var(--primary)",
-                      color: "var(--text-on-accent)",
+                      backgroundColor: "var(--surface-accent)",
+                      color: "var(--primary)",
+                      border: "1px solid var(--border-color)",
                     }}
                   >
                     {initials}
@@ -279,8 +285,20 @@ export default function Home() {
           }}
         >
           <div className="container mx-auto px-6">
-            <div className="mx-auto mb-10 max-w-2xl text-center">
-              <h2 className="text-3xl font-bold">
+            <div className="mb-10 max-w-xl">
+              <p
+                className="mb-2 text-xs font-semibold uppercase tracking-widest"
+                style={{ color: "var(--primary)" }}
+              >
+                Features
+              </p>
+              <h2
+                className="text-3xl font-bold"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  letterSpacing: "-0.025em",
+                }}
+              >
                 Everything a planning room needs
               </h2>
               <p

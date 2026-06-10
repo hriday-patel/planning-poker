@@ -35,7 +35,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
     return (
       <div
         ref={ref}
-        className={cn("rounded-lg border shadow-theme", className)}
+        className={cn("rounded-lg border", className)}
         style={{ ...variantStyles[variant], ...style }}
         {...props}
       />

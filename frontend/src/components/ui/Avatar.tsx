@@ -39,9 +39,9 @@ export function Avatar({
         className,
       )}
       style={{
-        background:
-          "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
-        color: "var(--text-on-accent)",
+        backgroundColor: "var(--surface-accent)",
+        color: "var(--primary)",
+        border: "1px solid var(--border-color)",
       }}
       title={name}
       {...props}

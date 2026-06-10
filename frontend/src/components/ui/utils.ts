@@ -4,11 +4,9 @@ export const cn = (...classes: Array<string | false | null | undefined>) => {
 
 export const primaryButtonStyle = {
   backgroundColor: "var(--primary)",
-  backgroundImage:
-    "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
+  backgroundImage: "none",
   color: "var(--text-on-accent)",
-  boxShadow:
-    "0 16px 40px -24px color-mix(in srgb, var(--primary) 70%, transparent)",
+  boxShadow: "none",
 } as const;
 
 export const secondaryButtonStyle = {

@@ -1,7 +1,5 @@
 "use client";
 
-import { Card } from "@/components/ui";
-
 export default function FAQPage() {
   const faqs = [
     {
@@ -92,22 +90,25 @@ export default function FAQPage() {
       <div className="container mx-auto px-6 py-12 max-w-4xl">
         <h1 className="text-4xl font-bold mb-8">Frequently Asked Questions</h1>
 
-        <div className="space-y-6">
+        <div
+          className="divide-y"
+          style={{ borderColor: "var(--border-color)" }}
+        >
           {faqs.map((faq, index) => (
-            <Card key={index} className="p-6" variant="primary">
+            <div key={index} className="py-6">
               <h2
-                className="text-xl font-semibold mb-3"
-                style={{ color: "var(--primary)" }}
+                className="text-base font-semibold mb-2"
+                style={{ fontFamily: "var(--font-display)" }}
               >
                 {faq.question}
               </h2>
               <p
-                className="leading-relaxed"
+                className="text-sm leading-relaxed"
                 style={{ color: "var(--text-secondary)" }}
               >
                 {faq.answer}
               </p>
-            </Card>
+            </div>
           ))}
         </div>
 
@@ -128,8 +129,8 @@ export default function FAQPage() {
             href="mailto:support@planningpoker.com"
             className="inline-flex min-h-11 items-center justify-center rounded-lg border px-5 py-3 text-base font-semibold shadow-sm transition-transform hover:-translate-y-0.5 active:translate-y-0"
             style={{
-              background:
-                "linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, var(--accent) 28%) 100%)",
+              backgroundColor: "var(--primary)",
+              backgroundImage: "none",
               borderColor: "var(--primary)",
               color: "var(--text-on-accent)",
             }}
