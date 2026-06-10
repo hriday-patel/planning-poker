@@ -37,6 +37,9 @@ const emptyCredentials: JiraImportRequest = {
   sprintId: "",
 };
 
+const getIssueTypeLabel = (issueType: string | null | undefined): string =>
+  issueType?.trim() || "Other";
+
 export default function JiraImportModal({
   isLoading,
   isOpen,
@@ -51,8 +54,8 @@ export default function JiraImportModal({
   const [duplicateAction, setDuplicateAction] =
     useState<JiraDuplicateAction>("skip");
   const [error, setError] = useState<string | null>(null);
-  const [enabledIssueTypes, setEnabledIssueTypes] = useState<Set<string>>(
-    new Set(),
+  const [issueTypeFilter, setIssueTypeFilter] = useState<Set<string> | null>(
+    null,
   );
   const [jiraSettings, setJiraSettings] = useState<JiraSettings | null>(null);
 
@@ -63,7 +66,7 @@ export default function JiraImportModal({
       setSelectedKeys(new Set());
       setDuplicateAction("skip");
       setError(null);
-      setEnabledIssueTypes(new Set());
+      setIssueTypeFilter(null);
       return;
     }
 
@@ -90,9 +93,7 @@ export default function JiraImportModal({
   const issueTypes = useMemo(() => {
     const types = new Set<string>();
     candidates.forEach((candidate) => {
-      if (candidate.issueType) {
-        types.add(candidate.issueType);
-      }
+      types.add(getIssueTypeLabel(candidate.issueType));
     });
     return Array.from(types).sort();
   }, [candidates]);
@@ -102,7 +103,7 @@ export default function JiraImportModal({
     const groups = new Map<string, JiraImportCandidate[]>();
     
     candidates.forEach((candidate) => {
-      const type = candidate.issueType || "Other";
+      const type = getIssueTypeLabel(candidate.issueType);
       if (!groups.has(type)) {
         groups.set(type, []);
       }
@@ -117,27 +118,28 @@ export default function JiraImportModal({
 
   // Filter candidates based on enabled issue types
   const filteredCandidates = useMemo(() => {
-    if (enabledIssueTypes.size === 0) {
+    if (issueTypeFilter === null) {
       return candidates;
     }
-    return candidates.filter((candidate) =>
-      enabledIssueTypes.has(candidate.issueType || "Other"),
-    );
-  }, [candidates, enabledIssueTypes]);
 
-  // Filter grouped candidates based on enabled issue types
+    return candidates.filter((candidate) =>
+      issueTypeFilter.has(getIssueTypeLabel(candidate.issueType)),
+    );
+  }, [candidates, issueTypeFilter]);
+
   const filteredGroupedCandidates = useMemo(() => {
-    if (enabledIssueTypes.size === 0) {
+    if (issueTypeFilter === null) {
       return groupedCandidates;
     }
+
     const filtered = new Map<string, JiraImportCandidate[]>();
     groupedCandidates.forEach((issues, type) => {
-      if (enabledIssueTypes.has(type)) {
+      if (issueTypeFilter.has(type)) {
         filtered.set(type, issues);
       }
     });
     return filtered;
-  }, [groupedCandidates, enabledIssueTypes]);
+  }, [groupedCandidates, issueTypeFilter]);
 
   const selectedCandidates = useMemo(() => {
     return filteredCandidates.filter((candidate) =>
@@ -169,14 +171,13 @@ export default function JiraImportModal({
       const preview = await onPreview(credentials);
       setCandidates(preview.candidates);
       
-      // Enable all issue types by default
-      const types = new Set<string>();
-      preview.candidates.forEach((candidate) => {
-        if (candidate.issueType) {
-          types.add(candidate.issueType);
-        }
-      });
-      setEnabledIssueTypes(types);
+      setIssueTypeFilter(
+        new Set(
+          preview.candidates.map((candidate) =>
+            getIssueTypeLabel(candidate.issueType),
+          ),
+        ),
+      );
       
       setSelectedKeys(
         new Set(
@@ -189,7 +190,7 @@ export default function JiraImportModal({
     } catch (previewError: any) {
       setCandidates([]);
       setSelectedKeys(new Set());
-      setEnabledIssueTypes(new Set());
+      setIssueTypeFilter(null);
       setError(previewError.message || "Failed to preview Jira sprint");
     }
   };
@@ -212,13 +213,16 @@ export default function JiraImportModal({
   };
 
   const handleToggleIssueType = (issueType: string) => {
-    setEnabledIssueTypes((prev) => {
-      const next = new Set(prev);
+    setIssueTypeFilter((prev) => {
+      const activeFilter =
+        prev ??
+        new Set(candidates.map((candidate) => getIssueTypeLabel(candidate.issueType)));
+      const next = new Set(activeFilter);
+
       if (next.has(issueType)) {
         next.delete(issueType);
-        // Deselect all issues of this type
         const issuesOfType = candidates
-          .filter((c) => (c.issueType || "Other") === issueType)
+          .filter((c) => getIssueTypeLabel(c.issueType) === issueType)
           .map((c) => c.key);
         setSelectedKeys((prevKeys) => {
           const nextKeys = new Set(prevKeys);
@@ -227,11 +231,10 @@ export default function JiraImportModal({
         });
       } else {
         next.add(issueType);
-        // Auto-select non-duplicate issues of this type
         const issuesOfType = candidates
           .filter(
             (c) =>
-              (c.issueType || "Other") === issueType &&
+              getIssueTypeLabel(c.issueType) === issueType &&
               (duplicateAction === "include" || !c.isDuplicate),
           )
           .map((c) => c.key);
@@ -241,6 +244,7 @@ export default function JiraImportModal({
           return nextKeys;
         });
       }
+
       return next;
     });
   };
@@ -248,7 +252,7 @@ export default function JiraImportModal({
   const handleSelectAllInGroup = (issueType: string) => {
     const issuesInGroup = candidates.filter(
       (c) =>
-        (c.issueType || "Other") === issueType &&
+        getIssueTypeLabel(c.issueType) === issueType &&
         (duplicateAction === "include" || !c.isDuplicate),
     );
     setSelectedKeys((prev) => {
@@ -260,7 +264,7 @@ export default function JiraImportModal({
 
   const handleDeselectAllInGroup = (issueType: string) => {
     const issuesInGroup = candidates.filter(
-      (c) => (c.issueType || "Other") === issueType,
+      (c) => getIssueTypeLabel(c.issueType) === issueType,
     );
     setSelectedKeys((prev) => {
       const next = new Set(prev);
@@ -447,7 +451,8 @@ export default function JiraImportModal({
                 <div className="flex flex-wrap gap-2">
                   {issueTypes.map((issueType) => {
                     const typeCount = groupedCandidates.get(issueType)?.length || 0;
-                    const isEnabled = enabledIssueTypes.has(issueType);
+                    const isEnabled =
+                      issueTypeFilter === null || issueTypeFilter.has(issueType);
                     
                     return (
                       <label

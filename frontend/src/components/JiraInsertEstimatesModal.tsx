@@ -38,6 +38,9 @@ const isNumericEstimate = (estimate: string | null): boolean => {
   return Number.isFinite(Number(estimate.trim()));
 };
 
+const isUnsupportedEstimationError = (error: string): boolean =>
+  /does not support story point estimation/i.test(error);
+
 export default function JiraInsertEstimatesModal({
   isLoading,
   isOpen,
@@ -113,7 +116,7 @@ export default function JiraInsertEstimatesModal({
       <ModalHeader
         icon={Upload}
         title="Insert Estimates into Jira"
-        subtitle="Update Jira story points with the finalized estimates"
+        subtitle="Update Jira story points with finalized estimates when the issue type supports them"
         onClose={onClose}
       />
 
@@ -171,7 +174,14 @@ export default function JiraInsertEstimatesModal({
             {result.failed.length > 0 && (
               <div className="space-y-2">
                 {result.failed.map((item) => (
-                  <Alert key={item.key} variant="danger">
+                  <Alert
+                    key={item.key}
+                    variant={
+                      isUnsupportedEstimationError(item.error)
+                        ? "warning"
+                        : "danger"
+                    }
+                  >
                     <span className="font-semibold">{item.key}</span>:{" "}
                     {item.error}
                   </Alert>

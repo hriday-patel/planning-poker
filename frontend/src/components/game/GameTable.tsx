@@ -394,40 +394,6 @@ export default function GameTable({
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 px-5 pb-5 sm:px-8 sm:pb-6">
         <div className="relative min-h-0 flex-1 overflow-auto">
-          {isCountdownActive && (
-            <div
-              className="absolute inset-0 z-40 flex items-center justify-center"
-              aria-live="assertive"
-              role="status"
-              style={{
-                backgroundColor:
-                  "color-mix(in srgb, var(--bg-primary) 34%, transparent)",
-              }}
-            >
-              <div
-                className="flex items-center gap-3 rounded-full border px-5 py-2 text-sm font-medium shadow-theme"
-                style={{
-                  borderColor: "var(--border-color)",
-                  color: "var(--text-primary)",
-                  backgroundColor: "var(--surface-primary)",
-                }}
-              >
-                <span
-                  className="text-base font-semibold tabular-nums"
-                  style={{ color: "var(--primary)" }}
-                >
-                  {countdownNumber}
-                </span>
-                <span
-                  className="text-xs uppercase tracking-wide"
-                  style={{ color: "var(--text-tertiary)" }}
-                >
-                  Revealing
-                </span>
-              </div>
-            </div>
-          )}
-
           <div className="flex min-h-full w-full">
             <div className="m-auto grid w-full max-w-4xl grid-cols-[auto_minmax(0,1fr)_auto] gap-x-3 gap-y-2 p-2">
               {seatedPlayers.top.length > 0 && (
@@ -454,7 +420,7 @@ export default function GameTable({
 
               <div className="col-start-2 row-start-2 flex items-center justify-center">
                 <div
-                  className="flex min-h-40 w-full max-w-lg items-center justify-center rounded-4xl border p-4 sm:p-5"
+                  className="relative flex min-h-40 w-full max-w-lg items-center justify-center rounded-4xl border p-4 sm:p-5"
                   style={{
                     background:
                       "linear-gradient(135deg, color-mix(in srgb, var(--primary) 28%, var(--surface-accent)) 0%, var(--surface-secondary) 100%)",
@@ -463,6 +429,40 @@ export default function GameTable({
                       "inset 0 1px 0 color-mix(in srgb, var(--text-on-accent) 18%, transparent), 0 28px 90px -64px var(--primary)",
                   }}
                 >
+                  {isCountdownActive && (
+                    <div
+                      className="absolute inset-0 z-10 flex items-center justify-center rounded-4xl"
+                      aria-live="assertive"
+                      role="status"
+                      style={{
+                        backgroundColor:
+                          "color-mix(in srgb, var(--bg-primary) 34%, transparent)",
+                      }}
+                    >
+                      <div
+                        className="flex items-center gap-3 rounded-full border px-5 py-2 text-sm font-medium shadow-theme"
+                        style={{
+                          borderColor: "var(--border-color)",
+                          color: "var(--text-primary)",
+                          backgroundColor: "var(--surface-primary)",
+                        }}
+                      >
+                        <span
+                          className="text-base font-semibold tabular-nums"
+                          style={{ color: "var(--primary)" }}
+                        >
+                          {countdownNumber}
+                        </span>
+                        <span
+                          className="text-xs uppercase tracking-wide"
+                          style={{ color: "var(--text-tertiary)" }}
+                        >
+                          Revealing
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   {!isCountdownActive && (
                     <div
                       className="w-full max-w-md text-center"

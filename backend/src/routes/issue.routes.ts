@@ -11,7 +11,10 @@ import { AuthenticatedRequest } from "../types/auth.types";
 import { ImportIssueInput } from "../types/game.types";
 import { ServerEvents } from "../types/websocket.types";
 import { authenticate } from "../middleware/auth";
-import { uploadRateLimiter } from "../middleware/rateLimiter";
+import {
+  jiraApiRateLimiter,
+  uploadRateLimiter,
+} from "../middleware/rateLimiter";
 import {
   getGameIssues,
   createIssue,
@@ -351,7 +354,7 @@ router.delete(
 router.post(
   "/:gameId/issues/import/jira/preview",
   authenticate as any,
-  uploadRateLimiter,
+  jiraApiRateLimiter,
   async (req: Request, res: Response): Promise<void> => {
     const authReq = req as AuthenticatedRequest;
 
@@ -453,7 +456,7 @@ router.post(
 router.post(
   "/:gameId/issues/import/jira/confirm",
   authenticate as any,
-  uploadRateLimiter,
+  jiraApiRateLimiter,
   async (req: Request, res: Response): Promise<void> => {
     const authReq = req as AuthenticatedRequest;
 
@@ -570,7 +573,7 @@ router.post(
 router.post(
   "/:gameId/issues/export/jira/estimates",
   authenticate as any,
-  uploadRateLimiter,
+  jiraApiRateLimiter,
   async (req: Request, res: Response): Promise<void> => {
     const authReq = req as AuthenticatedRequest;
 

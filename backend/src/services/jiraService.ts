@@ -47,6 +47,22 @@ interface JiraFieldResponse {
   name?: string;
 }
 
+interface JiraEditMetaFieldResponse {
+  operations?: string[];
+}
+
+interface JiraEditMetaResponse {
+  fields?: Record<string, JiraEditMetaFieldResponse>;
+}
+
+interface JiraIssueTypeResponse {
+  fields?: {
+    issuetype?: {
+      name?: string;
+    };
+  };
+}
+
 export interface JiraStoryPointUpdate {
   issueKey: string;
   storyPoints: number;
@@ -177,6 +193,99 @@ const readJiraError = async (response: Response): Promise<string> => {
   } catch (_error) {
     return response.statusText;
   }
+};
+
+const STORY_POINTS_FIELD_NOT_SETTABLE_PATTERNS = [
+  /field .+ cannot be set/i,
+  /field cannot be set on this issue/i,
+  /not on the appropriate screen/i,
+  /field .+ is unknown/i,
+];
+
+const getUnsupportedEstimationMessage = (
+  issueType?: string | null,
+): string => {
+  if (issueType) {
+    return `The ${issueType} issue type does not support story point estimation. No estimation field is configured for this issue type in Jira.`;
+  }
+
+  return "This issue type does not support story point estimation. No estimation field is configured for this issue type in Jira.";
+};
+
+export const formatStoryPointsUpdateError = (
+  rawError: string,
+  issueType?: string | null,
+): string => {
+  const isUnsupportedIssueType = STORY_POINTS_FIELD_NOT_SETTABLE_PATTERNS.some(
+    (pattern) => pattern.test(rawError),
+  );
+
+  if (isUnsupportedIssueType) {
+    return getUnsupportedEstimationMessage(issueType);
+  }
+
+  return rawError.replace(/customfield_\d+/gi, "estimation field");
+};
+
+const fetchJiraIssueType = async (
+  authHeader: string,
+  normalizedSiteUrl: string,
+  issueKey: string,
+): Promise<string | null> => {
+  const url = new URL(
+    `/rest/api/2/issue/${encodeURIComponent(issueKey)}`,
+    normalizedSiteUrl,
+  );
+  url.searchParams.set("fields", "issuetype");
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Basic ${authHeader}`,
+    },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as JiraIssueTypeResponse;
+  return data.fields?.issuetype?.name?.trim() || null;
+};
+
+const getEditableStoryPointsFieldIds = async (
+  authHeader: string,
+  normalizedSiteUrl: string,
+  issueKey: string,
+  candidateFieldIds: string[],
+): Promise<string[] | null> => {
+  const url = new URL(
+    `/rest/api/2/issue/${encodeURIComponent(issueKey)}/editmeta`,
+    normalizedSiteUrl,
+  );
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Basic ${authHeader}`,
+    },
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as JiraEditMetaResponse;
+  const editableFields = data.fields ?? {};
+
+  return candidateFieldIds.filter((fieldId) => {
+    const field = editableFields[fieldId];
+    return (
+      field &&
+      Array.isArray(field.operations) &&
+      field.operations.includes("set")
+    );
+  });
 };
 
 const getJiraStatusMessage = async (
@@ -489,7 +598,30 @@ export const pushJiraStoryPoints = async ({
     let lastErrorMessage = "Failed to update Jira issue";
     let didUpdate = false;
 
-    for (const fieldId of orderedFieldIds) {
+    const editableFieldIds = await getEditableStoryPointsFieldIds(
+      authHeader,
+      normalizedSiteUrl,
+      update.issueKey,
+      orderedFieldIds,
+    );
+
+    if (editableFieldIds !== null && editableFieldIds.length === 0) {
+      const issueType = await fetchJiraIssueType(
+        authHeader,
+        normalizedSiteUrl,
+        update.issueKey,
+      );
+
+      failed.push({
+        key: update.issueKey,
+        error: getUnsupportedEstimationMessage(issueType),
+      });
+      continue;
+    }
+
+    const fieldIdsToTry = editableFieldIds ?? orderedFieldIds;
+
+    for (const fieldId of fieldIdsToTry) {
       try {
         await updateJiraIssueStoryPoints(
           authHeader,
@@ -518,7 +650,16 @@ export const pushJiraStoryPoints = async ({
     if (didUpdate) {
       updated.push({ key: update.issueKey, storyPoints: update.storyPoints });
     } else {
-      failed.push({ key: update.issueKey, error: lastErrorMessage });
+      const issueType = await fetchJiraIssueType(
+        authHeader,
+        normalizedSiteUrl,
+        update.issueKey,
+      );
+
+      failed.push({
+        key: update.issueKey,
+        error: formatStoryPointsUpdateError(lastErrorMessage, issueType),
+      });
     }
   }
 

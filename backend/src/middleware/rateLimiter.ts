@@ -67,6 +67,35 @@ export const uploadRateLimiter = rateLimit({
 });
 
 /**
+ * Rate limiter for Jira API operations (import preview/confirm, estimate push).
+ * Keyed by user ID so shared dev IPs (e.g. localhost) do not block each other.
+ */
+export const jiraApiRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyGenerator: (req) => {
+    const userId = (req as any).userId || (req as any).user?.userId;
+    return userId ? `user:${userId}` : `ip:${req.ip}`;
+  },
+  message: {
+    success: false,
+    error: "Too many Jira requests, please try again later",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    const userId = (req as any).userId || (req as any).user?.userId;
+    logger.warn(
+      `Jira API rate limit exceeded for ${userId ? `user: ${userId}` : `IP: ${req.ip}`}`,
+    );
+    res.status(429).json({
+      success: false,
+      error: "Too many Jira requests, please try again in 15 minutes",
+    });
+  },
+});
+
+/**
  * Rate limiter for game creation
  * Prevents spam game creation
  */
