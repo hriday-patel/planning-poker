@@ -12,10 +12,13 @@ import {
   createGame,
   getGameDetails,
   updateGame,
-  getUserGames,
+  getUserGameHistory,
+  getGameSummary,
   addGameParticipant,
   isGameParticipant,
   getGameVotingHistory,
+  GAME_HISTORY_DEFAULT_PAGE_SIZE,
+  GAME_HISTORY_MAX_PAGE_SIZE,
 } from "../services/gameService";
 import { logger } from "../utils/logger";
 
@@ -104,8 +107,10 @@ router.post(
 );
 
 /**
- * GET /api/v1/games/my
- * Get all games the user has participated in
+ * GET /api/v1/games/my/list
+ * Get a page of games the user has participated in (most recent first),
+ * enriched with metadata for the Game History view.
+ * Supports ?limit and ?offset query params for pagination.
  * Note: This route must be defined before /:gameId to avoid conflicts
  */
 router.get(
@@ -123,11 +128,31 @@ router.get(
         return;
       }
 
-      const games = await getUserGames(authReq.userId);
+      const parsedLimit = Number.parseInt(String(req.query.limit), 10);
+      const parsedOffset = Number.parseInt(String(req.query.offset), 10);
+      const limit = Math.min(
+        Math.max(
+          Number.isNaN(parsedLimit) ? GAME_HISTORY_DEFAULT_PAGE_SIZE : parsedLimit,
+          1,
+        ),
+        GAME_HISTORY_MAX_PAGE_SIZE,
+      );
+      const offset = Math.max(Number.isNaN(parsedOffset) ? 0 : parsedOffset, 0);
+
+      const { games, total } = await getUserGameHistory(authReq.userId, {
+        limit,
+        offset,
+      });
 
       res.json({
         success: true,
         games,
+        pagination: {
+          total,
+          limit,
+          offset,
+          has_more: offset + games.length < total,
+        },
       });
       return;
     } catch (error) {
@@ -338,6 +363,64 @@ router.get(
       res.status(500).json({
         success: false,
         error: "Failed to fetch game history",
+      });
+      return;
+    }
+  },
+);
+
+/**
+ * GET /api/v1/games/:gameId/summary
+ * Get the full summary of a game (details, participants, issues, rounds)
+ * for the Game History detail view. Unlike GET /:gameId, this never
+ * adds the requester as a participant.
+ */
+router.get(
+  "/:gameId/summary",
+  authenticate as any,
+  async (req: Request, res: Response): Promise<void> => {
+    const authReq = req as AuthenticatedRequest;
+
+    try {
+      if (!authReq.userId) {
+        res.status(401).json({
+          success: false,
+          error: "Not authenticated",
+        });
+        return;
+      }
+
+      const { gameId } = req.params;
+
+      const isParticipant = await isGameParticipant(gameId, authReq.userId);
+      if (!isParticipant) {
+        res.status(403).json({
+          success: false,
+          error: "You must be a participant to view this game",
+        });
+        return;
+      }
+
+      const summary = await getGameSummary(gameId);
+
+      if (!summary) {
+        res.status(404).json({
+          success: false,
+          error: "Game not found",
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        ...summary,
+      });
+      return;
+    } catch (error) {
+      logger.error("Error fetching game summary:", error);
+      res.status(500).json({
+        success: false,
+        error: "Failed to fetch game summary",
       });
       return;
     }

@@ -25,6 +25,7 @@ export default function SiteHeader() {
   const showFaqLink = pathname === "/";
   const pageTitles: Record<string, string> = {
     "/account": "My Account",
+    "/history": "Game History",
     "/settings/jira": "JIRA Settings",
   };
   const pageTitle = pageTitles[pathname] ?? null;

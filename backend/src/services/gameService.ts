@@ -373,22 +373,126 @@ export const updateGame = async (
 };
 
 /**
- * Get all games a user has participated in
+ * Game history list item with aggregated metadata
  */
-export const getUserGames = async (userId: string): Promise<GameRecord[]> => {
+export interface GameHistoryItem {
+  id: string;
+  name: string;
+  status: GameStatus;
+  created_at: Date;
+  updated_at: Date;
+  last_activity_at: Date;
+  joined_at: Date;
+  creator_id: string;
+  creator_name: string;
+  facilitator_id: string;
+  facilitator_name: string;
+  deck_name: string;
+  participant_count: number;
+  participant_preview: string[];
+  completed_round_count: number;
+  issue_count: number;
+  estimated_issue_count: number;
+}
+
+export interface GameHistoryPage {
+  games: GameHistoryItem[];
+  total: number;
+}
+
+export const GAME_HISTORY_MAX_PAGE_SIZE = 50;
+export const GAME_HISTORY_DEFAULT_PAGE_SIZE = 20;
+
+/**
+ * Get a page of games a user has participated in, most recent first,
+ * enriched with metadata for the Game History view.
+ */
+export const getUserGameHistory = async (
+  userId: string,
+  options: { limit?: number; offset?: number } = {},
+): Promise<GameHistoryPage> => {
+  const limit = Math.min(
+    Math.max(options.limit ?? GAME_HISTORY_DEFAULT_PAGE_SIZE, 1),
+    GAME_HISTORY_MAX_PAGE_SIZE,
+  );
+  const offset = Math.max(options.offset ?? 0, 0);
+
   try {
-    const result = await db.query(
-      `SELECT DISTINCT g.* 
-       FROM games g
-       JOIN game_participants gp ON g.id = gp.game_id
-       WHERE gp.user_id = $1
-       ORDER BY g.updated_at DESC`,
+    const countResult = await db.query(
+      `SELECT COUNT(*)::int AS total
+       FROM game_participants gp
+       WHERE gp.user_id = $1`,
       [userId],
     );
+    const total: number = countResult.rows[0]?.total ?? 0;
 
-    return result.rows as GameRecord[];
+    const result = await db.query(
+      `SELECT
+         g.id,
+         g.name,
+         g.status,
+         g.created_at,
+         g.updated_at,
+         gp.joined_at,
+         g.creator_id,
+         creator.display_name AS creator_name,
+         g.facilitator_id,
+         facilitator.display_name AS facilitator_name,
+         d.name AS deck_name,
+         GREATEST(g.updated_at, COALESCE(rounds.last_revealed_at, g.updated_at)) AS last_activity_at,
+         participants.participant_count,
+         COALESCE(participants.participant_preview, '[]'::json) AS participant_preview,
+         COALESCE(rounds.completed_round_count, 0) AS completed_round_count,
+         COALESCE(issues.issue_count, 0) AS issue_count,
+         COALESCE(issues.estimated_issue_count, 0) AS estimated_issue_count
+       FROM game_participants gp
+       JOIN games g ON g.id = gp.game_id
+       JOIN users creator ON creator.id = g.creator_id
+       JOIN users facilitator ON facilitator.id = g.facilitator_id
+       JOIN decks d ON d.id = g.deck_id
+       LEFT JOIN LATERAL (
+         SELECT
+           COUNT(*)::int AS participant_count,
+           (
+             SELECT json_agg(preview.display_name)
+             FROM (
+               SELECT u.display_name
+               FROM game_participants gp_preview
+               JOIN users u ON u.id = gp_preview.user_id
+               WHERE gp_preview.game_id = g.id
+               ORDER BY gp_preview.joined_at ASC
+               LIMIT 5
+             ) preview
+           ) AS participant_preview
+         FROM game_participants gp_count
+         WHERE gp_count.game_id = g.id
+       ) participants ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT
+           COUNT(*) FILTER (WHERE vr.revealed_at IS NOT NULL)::int AS completed_round_count,
+           MAX(vr.revealed_at) AS last_revealed_at
+         FROM voting_rounds vr
+         WHERE vr.game_id = g.id
+       ) rounds ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT
+           COUNT(*)::int AS issue_count,
+           COUNT(*) FILTER (WHERE i.final_estimate IS NOT NULL)::int AS estimated_issue_count
+         FROM issues i
+         WHERE i.game_id = g.id
+       ) issues ON TRUE
+       WHERE gp.user_id = $1
+       ORDER BY last_activity_at DESC, g.id
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset],
+    );
+
+    return {
+      games: result.rows as GameHistoryItem[],
+      total,
+    };
   } catch (error) {
-    logger.error("Error fetching user games:", error);
+    logger.error("Error fetching user game history:", error);
     throw error;
   }
 };
@@ -591,6 +695,87 @@ export const getGameVotingHistory = async (
     });
   } catch (error) {
     logger.error("Error fetching game voting history:", error);
+    throw error;
+  }
+};
+
+/**
+ * Full game summary for the Game History detail view
+ */
+export interface GameSummaryParticipant {
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  joined_at: Date;
+  is_creator: boolean;
+  is_facilitator: boolean;
+}
+
+export interface GameSummaryIssue {
+  id: string;
+  title: string;
+  status: string;
+  final_estimate: string | null;
+  display_order: number;
+  external_key: string | null;
+  external_url: string | null;
+}
+
+export interface GameSummary {
+  game: GameDetails;
+  participants: GameSummaryParticipant[];
+  issues: GameSummaryIssue[];
+  rounds: VotingHistoryEntry[];
+}
+
+export const getGameSummary = async (
+  gameId: string,
+): Promise<GameSummary | null> => {
+  try {
+    const game = await getGameDetails(gameId);
+    if (!game) {
+      return null;
+    }
+
+    const [participantsResult, issuesResult, rounds] = await Promise.all([
+      db.query(
+        `SELECT gp.user_id, u.display_name, u.avatar_url, gp.joined_at
+         FROM game_participants gp
+         JOIN users u ON u.id = gp.user_id
+         WHERE gp.game_id = $1
+         ORDER BY gp.joined_at ASC`,
+        [gameId],
+      ),
+      db.query(
+        `SELECT id, title, status, final_estimate, display_order,
+                external_key, external_url
+         FROM issues
+         WHERE game_id = $1
+         ORDER BY display_order ASC, created_at ASC`,
+        [gameId],
+      ),
+      getGameVotingHistory(gameId),
+    ]);
+
+    const participants: GameSummaryParticipant[] = participantsResult.rows.map(
+      (row) => ({
+        user_id: row.user_id,
+        display_name: row.display_name,
+        avatar_url: row.avatar_url,
+        joined_at: row.joined_at,
+        is_creator: row.user_id === game.creator_id,
+        is_facilitator: row.user_id === game.facilitator_id,
+      }),
+    );
+
+    return {
+      game,
+      participants,
+      issues: issuesResult.rows as GameSummaryIssue[],
+      rounds,
+    };
+  } catch (error) {
+    logger.error("Error fetching game summary:", error);
     throw error;
   }
 };

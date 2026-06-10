@@ -4,11 +4,11 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import {
-  Briefcase,
   ChevronDown,
   Eye,
   FileText,
   HelpCircle,
+  History,
   LogOut,
   Mail,
   Moon,
@@ -20,7 +20,7 @@ import {
 import { useTheme } from "@/contexts/ThemeContext";
 import EditProfileModal from "./EditProfileModal";
 import { apiFetch } from "@/lib/api";
-import { Avatar, Badge, Button } from "@/components/ui";
+import { Avatar, Button } from "@/components/ui";
 
 interface User {
   id: string;
@@ -219,11 +219,11 @@ export default function ProfileDropdown({
             </div>
 
             <div className="py-1">
-              <MenuButton icon={Briefcase} disabled>
-                <span>My games</span>
-                <Badge className="ml-auto" variant="neutral">
-                  Soon
-                </Badge>
+              <MenuButton
+                icon={History}
+                onClick={() => closeAndRoute("/history")}
+              >
+                Game History
               </MenuButton>
 
               <div className="flex items-center justify-between gap-3 px-4 py-2">

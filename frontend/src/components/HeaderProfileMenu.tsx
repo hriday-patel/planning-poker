@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  History,
   LogIn,
   LogOut,
   Moon,
@@ -196,6 +197,23 @@ export default function HeaderProfileMenu({
               {theme === "dark" ? "Dark" : "Light"}
             </Button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsOpen(false);
+              router.push("/history");
+            }}
+            className="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-opacity hover:opacity-80"
+            role="menuitem"
+          >
+            <History
+              className="h-4 w-4 shrink-0"
+              style={{ color: "var(--text-secondary)" }}
+              aria-hidden="true"
+            />
+            Game History
+          </button>
 
           <button
             type="button"
