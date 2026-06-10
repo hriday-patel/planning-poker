@@ -28,3 +28,9 @@ export function formatDeckName(name: string): string {
   }
   return name;
 }
+
+/** Deck name for list/detail labels (e.g. "Fibonacci deck", "custom deck"). */
+export function formatDeckLabel(name: string): string {
+  const formatted = formatDeckName(name);
+  return formatted === "custom deck" ? formatted : `${formatted} deck`;
+}

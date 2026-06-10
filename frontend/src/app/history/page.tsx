@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { formatDeckLabel } from "@/utils/deck";
 import GameHistoryDetailModal from "@/components/GameHistoryDetailModal";
 import {
   Alert,
@@ -277,7 +278,7 @@ export default function GameHistoryPage() {
                             style={{ color: "var(--text-secondary)" }}
                           >
                             Hosted by {isHost ? "you" : game.creator_name} ·{" "}
-                            {game.deck_name} deck
+                            {formatDeckLabel(game.deck_name)}
                           </p>
 
                           <div

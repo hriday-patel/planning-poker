@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { formatDeckName } from "@/utils/deck";
 import {
   Alert,
   Avatar,
@@ -195,7 +196,7 @@ export default function GameHistoryDetailModal({
         ["Last activity", formatDateTime(summary.game.updated_at)],
         ["Host", summary.game.creator_name],
         ["Facilitator", summary.game.facilitator_name],
-        ["Deck", summary.game.deck.name],
+        ["Deck", formatDeckName(summary.game.deck.name)],
         [
           "Card values",
           summary.game.deck.values.join(", "),
