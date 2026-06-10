@@ -20,9 +20,17 @@ import {
 const JIRA_API_TOKEN_URL =
   "https://jsw.ibm.com/plugins/servlet/de.resolution.apitokenauth/admin";
 
+// Mirrors DEFAULT_JIRA_SITE_URL in backend/src/services/jiraService.ts; shown
+// to visitors who don't have a session (and therefore no stored settings) yet.
+const DEFAULT_JIRA_SETTINGS: JiraSettings = {
+  siteUrl: "https://jsw.ibm.com/secure/Dashboard.jspa",
+  hasApiToken: false,
+};
+
 export default function JiraSettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<JiraSettings | null>(null);
+  const [isGuestSession, setIsGuestSession] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [tokenInput, setTokenInput] = useState("");
   const [isSavingToken, setIsSavingToken] = useState(false);
@@ -33,14 +41,43 @@ export default function JiraSettingsPage() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await apiFetch("/api/v1/users/me/jira-settings");
+        const loadSettingsAndSession = () =>
+          Promise.all([
+            apiFetch("/api/v1/users/me/jira-settings"),
+            apiFetch("/api/v1/auth/me"),
+          ]);
 
-        if (!response.ok) {
+        let [settingsResponse, meResponse] = await loadSettingsAndSession();
+
+        if (settingsResponse.status === 401) {
+          // The access token may simply have expired; try to restore the
+          // session before treating this as a visitor without an account.
+          const refreshResponse = await apiFetch("/api/v1/auth/refresh", {
+            method: "POST",
+          });
+
+          if (refreshResponse.ok) {
+            [settingsResponse, meResponse] = await loadSettingsAndSession();
+          }
+        }
+
+        if (settingsResponse.status === 401) {
+          // No session yet (e.g. first visit): show the defaults. A guest
+          // session is created automatically on the first save.
+          setIsGuestSession(true);
+          setSettings(DEFAULT_JIRA_SETTINGS);
+          return;
+        }
+
+        if (!settingsResponse.ok) {
           router.push("/login");
           return;
         }
 
-        const data = await response.json();
+        const meData = meResponse.ok ? await meResponse.json() : null;
+        setIsGuestSession(Boolean(meData?.user?.isGuest));
+
+        const data = await settingsResponse.json();
         setSettings(data.settings);
       } catch (fetchError) {
         console.error("Error fetching JIRA settings:", fetchError);
@@ -57,13 +94,46 @@ export default function JiraSettingsPage() {
     siteUrl?: string;
     apiToken?: string;
   }): Promise<JiraSettings> => {
-    const response = await apiFetch("/api/v1/users/me/jira-settings", {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(updates),
-    });
+    const putSettings = () =>
+      apiFetch("/api/v1/users/me/jira-settings", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updates),
+      });
+
+    let response = await putSettings();
+
+    if (response.status === 401) {
+      // Settings live on a user record, so a session is required to save
+      // them. Restore an expired session if possible; otherwise start a
+      // guest session (the same kind used by "Try as Guest" games).
+      const refreshResponse = await apiFetch("/api/v1/auth/refresh", {
+        method: "POST",
+      });
+
+      if (!refreshResponse.ok) {
+        const guestResponse = await apiFetch("/api/v1/guest/create-session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({}),
+        });
+
+        if (!guestResponse.ok) {
+          throw new Error(
+            "Could not start a session to save your settings. Please try again.",
+          );
+        }
+
+        setIsGuestSession(true);
+      }
+
+      response = await putSettings();
+    }
+
     const data = await response.json().catch(() => null);
 
     if (!response.ok) {
@@ -137,6 +207,14 @@ export default function JiraSettingsPage() {
         />
 
         <Card className="p-6 sm:p-8" variant="primary">
+          {isGuestSession && (
+            <Alert variant="info" className="mb-6">
+              You&apos;re not signed in. Settings saved here are kept in a
+              temporary guest session in this browser and are used when you
+              create or join games as a guest. Sign in with W3ID before saving
+              if you want them on your permanent account.
+            </Alert>
+          )}
           {error && (
             <Alert variant="danger" className="mb-6">
               {error}

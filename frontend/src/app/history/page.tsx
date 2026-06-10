@@ -70,6 +70,7 @@ export default function GameHistoryPage() {
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,15 +83,37 @@ export default function GameHistoryPage() {
     setError(null);
 
     try {
-      const [meResponse, listResponse] = await Promise.all([
-        apiFetch("/api/v1/auth/me"),
-        apiFetch(`/api/v1/games/my/list?limit=${PAGE_SIZE}&offset=0`),
-      ]);
+      const fetchSessionAndGames = () =>
+        Promise.all([
+          apiFetch("/api/v1/auth/me"),
+          apiFetch(`/api/v1/games/my/list?limit=${PAGE_SIZE}&offset=0`),
+        ]);
+
+      let [meResponse, listResponse] = await fetchSessionAndGames();
 
       if (meResponse.status === 401 || listResponse.status === 401) {
-        router.push("/login?returnTo=%2Fhistory");
+        // The access token may simply have expired; try to restore the
+        // session before treating this as a visitor without an account.
+        const refreshResponse = await apiFetch("/api/v1/auth/refresh", {
+          method: "POST",
+        });
+
+        if (refreshResponse.ok) {
+          [meResponse, listResponse] = await fetchSessionAndGames();
+        }
+      }
+
+      if (meResponse.status === 401 || listResponse.status === 401) {
+        // No session at all (e.g. first visit): show the empty state
+        // instead of forcing the visitor through the login page.
+        setIsAnonymous(true);
+        setGames([]);
+        setTotal(0);
+        setHasMore(false);
         return;
       }
+
+      setIsAnonymous(false);
 
       if (!listResponse.ok) {
         throw new Error("Failed to load your game history");
@@ -112,7 +135,7 @@ export default function GameHistoryPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     void loadInitial();
@@ -200,7 +223,12 @@ export default function GameHistoryPage() {
             description="Once you host or join a planning poker session, it will show up here."
             className="py-14"
             action={
-              <Button type="button" onClick={() => router.push("/create")}>
+              <Button
+                type="button"
+                onClick={() =>
+                  router.push(isAnonymous ? "/create?guest=1" : "/create")
+                }
+              >
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Start a New Game
               </Button>
