@@ -373,103 +373,61 @@ export default function Home() {
       </main>
 
       <footer
-        className="border-t py-10"
+        className="border-t py-5"
         style={{
-          backgroundColor: "var(--bg-secondary)",
-          borderColor: "var(--border-color)",
+          backgroundColor: "var(--bg-muted)",
+          borderColor: "var(--border-subtle)",
         }}
       >
-        <div className="container mx-auto px-6">
-          <div className="grid gap-8 md:grid-cols-4">
-            <div>
-              <div className="mb-3 flex items-center gap-3">
-                <span
-                  className="flex h-9 w-9 items-center justify-center rounded-lg"
-                  style={{
-                    backgroundColor: "var(--primary)",
-                    color: "var(--text-on-accent)",
-                  }}
-                >
-                  <Layers3 className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span className="font-semibold">Planning Poker</span>
-              </div>
-              <p className="text-sm" style={{ color: "var(--text-tertiary)" }}>
-                Real-time sprint estimation for agile teams
-              </p>
-            </div>
-
-            <div>
-              <h3 className="mb-3 font-semibold">Product</h3>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="#features" className="hover:opacity-80">
-                    Features
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/create" className="hover:opacity-80">
-                    Create Game
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/faq" className="hover:opacity-80">
-                    FAQs
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="mb-3 font-semibold">Support</h3>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="/faq" className="hover:opacity-80">
-                    Help Center
-                  </Link>
-                </li>
-                <li>
-                  <a
-                    href="mailto:support@planningpoker.com"
-                    className="hover:opacity-80"
-                  >
-                    Contact Us
-                  </a>
-                </li>
-                <li>
-                  <Link href="/legal" className="hover:opacity-80">
-                    Legal Notice
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="mb-3 font-semibold">Company</h3>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link href="/legal" className="hover:opacity-80">
-                    Privacy Policy
-                  </Link>
-                </li>
-                <li>
-                  <Link href="/legal" className="hover:opacity-80">
-                    Terms of Service
-                  </Link>
-                </li>
-              </ul>
-            </div>
+        <div className="container mx-auto flex flex-col items-center justify-between gap-4 px-6 sm:flex-row">
+          <div className="flex items-center gap-2.5">
+            <span
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+              style={{
+                backgroundColor: "var(--text-primary)",
+                color: "var(--bg-primary)",
+              }}
+            >
+              <Layers3 className="h-3.5 w-3.5" aria-hidden="true" />
+            </span>
+            <span
+              className="text-sm"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Planning Poker &copy; 2026
+            </span>
           </div>
 
-          <div
-            className="mt-8 border-t pt-6 text-center text-sm"
-            style={{
-              borderColor: "var(--border-subtle)",
-              color: "var(--text-tertiary)",
-            }}
-          >
-            <p>&copy; 2026 Planning Poker. All rights reserved.</p>
-          </div>
+          <nav className="flex flex-wrap items-center justify-center gap-6 text-sm">
+            <Link
+              href="#features"
+              className="transition-opacity hover:opacity-80"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Features
+            </Link>
+            <Link
+              href="/faq"
+              className="transition-opacity hover:opacity-80"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              FAQ
+            </Link>
+            <Link
+              href="/legal"
+              className="transition-opacity hover:opacity-80"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Legal
+            </Link>
+            <a
+              href="mailto:support@planningpoker.com"
+              className="transition-opacity hover:opacity-80"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              Contact
+            </a>
+          </nav>
         </div>
       </footer>
     </PageShell>
