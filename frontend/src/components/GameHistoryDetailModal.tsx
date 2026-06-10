@@ -7,7 +7,6 @@ import {
   BarChart3,
   CalendarClock,
   ClipboardList,
-  Crown,
   ExternalLink,
   History,
   Layers3,
@@ -239,16 +238,7 @@ export default function GameHistoryDetailModal({
         ) : summary ? (
           <div className="space-y-6">
             <section>
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <SectionHeading icon={CalendarClock} title="Overview" />
-                <Badge
-                  variant={
-                    summary.game.status === "active" ? "success" : "neutral"
-                  }
-                >
-                  {summary.game.status === "active" ? "Active" : "Archived"}
-                </Badge>
-              </div>
+              <SectionHeading icon={CalendarClock} title="Overview" />
               <Card className="p-4" variant="secondary">
                 <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
                   {overviewRows.map(([label, value]) => (
@@ -297,10 +287,7 @@ export default function GameHistoryDetailModal({
                       {participant.display_name}
                     </span>
                     {participant.is_creator && (
-                      <Badge variant="warning">
-                        <Crown className="h-3 w-3" aria-hidden="true" />
-                        Host
-                      </Badge>
+                      <Badge variant="warning">Host</Badge>
                     )}
                     {!participant.is_creator && participant.is_facilitator && (
                       <Badge variant="info">Facilitator</Badge>

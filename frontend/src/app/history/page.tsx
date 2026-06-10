@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   CalendarClock,
   ChevronRight,
-  Crown,
   History,
   Layers3,
   ListChecks,
@@ -242,22 +241,7 @@ export default function GameHistoryPage() {
                             <h2 className="truncate text-base font-semibold">
                               {game.name}
                             </h2>
-                            <Badge
-                              variant={
-                                game.status === "active" ? "success" : "neutral"
-                              }
-                            >
-                              {game.status === "active" ? "Active" : "Archived"}
-                            </Badge>
-                            {isHost && (
-                              <Badge variant="warning">
-                                <Crown
-                                  className="h-3 w-3"
-                                  aria-hidden="true"
-                                />
-                                Host
-                              </Badge>
-                            )}
+                            {isHost && <Badge variant="warning">Host</Badge>}
                           </div>
 
                           <p

@@ -1,5 +1,10 @@
-import { type HTMLAttributes } from "react";
+import { type HTMLAttributes, useState } from "react";
 import { cn } from "./utils";
+
+const GUEST_AVATAR_PATH = "/images/guest-avatar.png";
+
+const isPlaceholderAvatar = (imageUrl?: string | null) =>
+  !imageUrl || imageUrl === GUEST_AVATAR_PATH;
 
 type AvatarSize = "sm" | "md" | "lg";
 
@@ -22,7 +27,9 @@ export function Avatar({
   size = "md",
   ...props
 }: AvatarProps) {
+  const [imageFailed, setImageFailed] = useState(false);
   const fallback = name.trim().charAt(0).toUpperCase() || "?";
+  const showImage = !isPlaceholderAvatar(imageUrl) && !imageFailed;
 
   return (
     <div
@@ -39,8 +46,13 @@ export function Avatar({
       title={name}
       {...props}
     >
-      {imageUrl ? (
-        <img src={imageUrl} alt="" className="h-full w-full object-cover" />
+      {showImage ? (
+        <img
+          src={imageUrl!}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={() => setImageFailed(true)}
+        />
       ) : (
         fallback
       )}
