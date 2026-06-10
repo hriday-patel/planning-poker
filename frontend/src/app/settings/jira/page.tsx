@@ -17,6 +17,9 @@ import {
   PageShell,
 } from "@/components/ui";
 
+const JIRA_API_TOKEN_URL =
+  "https://jsw.ibm.com/plugins/servlet/de.resolution.apitokenauth/admin";
+
 export default function JiraSettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<JiraSettings | null>(null);
@@ -221,6 +224,15 @@ export default function JiraSettingsPage() {
                   Save
                 </Button>
               </div>
+              <a
+                href={JIRA_API_TOKEN_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-block text-xs font-medium underline"
+                style={{ color: "var(--primary)" }}
+              >
+                Generate API Token
+              </a>
             </Field>
           </section>
 
