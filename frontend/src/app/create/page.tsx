@@ -204,7 +204,7 @@ function CreateGamePageContent() {
           </div>
           {isGuestMode && (
             <span
-              className="inline-flex w-fit items-center rounded-full border px-3 py-1 text-sm font-medium text-nowrap"
+              className="inline-flex w-fit items-center rounded-lg border px-3 py-1 text-sm font-medium text-nowrap"
               style={{
                 backgroundColor: "var(--info-bg)",
                 borderColor: "var(--info)",

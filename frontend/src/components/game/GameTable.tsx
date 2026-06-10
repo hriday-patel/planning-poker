@@ -371,7 +371,7 @@ export default function GameTable({
           aria-live="polite"
         >
           <span
-            className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm font-medium"
+            className="inline-flex items-center gap-2 rounded-[10px] border px-3 py-1 text-sm font-medium"
             style={{
               borderColor: isConnected ? "var(--success)" : "var(--warning)",
               color: isConnected ? "var(--success)" : "var(--warning)",
@@ -381,7 +381,7 @@ export default function GameTable({
             {isConnected ? "Connected" : "Connecting"}
           </span>
           <span
-            className="rounded-full px-3 py-1 text-sm font-medium"
+            className="rounded-[10px] px-3 py-1 text-sm font-medium"
             style={{
               backgroundColor: "var(--surface-secondary)",
               color: "var(--text-secondary)",

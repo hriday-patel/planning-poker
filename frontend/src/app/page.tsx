@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type ComponentType } from "react";
 import {
   BarChart3,
-  Clock3,
+  History,
+  Infinity,
   Layers3,
   LockKeyhole,
   Plus,
   ShieldCheck,
-  Sparkles,
+  Ticket,
   Users,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -35,18 +36,39 @@ const proofPoints = [
 
 const features: Feature[] = [
   {
-    title: "Real-time Voting",
+    title: "Unlimited Voting Rounds",
     description:
-      "Instant synchronization across all participants with responsive WebSocket updates.",
+      "Run as many estimation rounds as your session needs with no caps or premium limits.",
+    icon: Infinity,
+    variant: "success",
+  },
+  {
+    title: "Accommodation of Large Teams",
+    description:
+      "Scale smoothly for big planning rooms with reliable real-time sync across many participants.",
     icon: Users,
     variant: "info",
   },
   {
-    title: "Completely Free",
+    title: "Voting and Game History",
     description:
-      "Unlimited games and voting rounds with no premium tiers or usage caps.",
-    icon: Sparkles,
-    variant: "success",
+      "Review past rounds, outcomes, and full session records whenever you need context.",
+    icon: History,
+    variant: "neutral",
+  },
+  {
+    title: "JIRA Integration",
+    description:
+      "Import sprint issues directly from Jira to keep estimation tied to your backlog.",
+    icon: Ticket,
+    variant: "warning",
+  },
+  {
+    title: "Custom Decks and Voting Analytics",
+    description:
+      "Choose Fibonacci, T-shirt sizes, or custom decks, then review averages and consensus trends.",
+    icon: BarChart3,
+    variant: "info",
   },
   {
     title: "Enterprise Security",
@@ -54,27 +76,6 @@ const features: Feature[] = [
       "Integrated IBM W3ID authentication and authoritative Blue Pages identity handling.",
     icon: ShieldCheck,
     variant: "neutral",
-  },
-  {
-    title: "Customizable Decks",
-    description:
-      "Support Fibonacci, T-shirt sizes, or a custom deck tailored to your workflow.",
-    icon: Layers3,
-    variant: "warning",
-  },
-  {
-    title: "Built-in Timer",
-    description:
-      "Keep discussions focused with synchronized countdown timers that reset cleanly.",
-    icon: Clock3,
-    variant: "neutral",
-  },
-  {
-    title: "Voting Analytics",
-    description:
-      "Review averages, consensus levels, and the full history of every session.",
-    icon: BarChart3,
-    variant: "info",
   },
 ];
 
