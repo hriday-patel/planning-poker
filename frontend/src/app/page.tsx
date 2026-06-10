@@ -254,7 +254,7 @@ export default function Home() {
               </Button>
             </div>
 
-            <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
+            <div className="mt-5 flex items-center justify-center gap-2 overflow-x-auto pb-1">
               {deckValues.map((value) => (
                 <div
                   key={value}
@@ -368,32 +368,6 @@ export default function Home() {
                 />
               </div>
             </div>
-          </div>
-        </section>
-
-        <section
-          className="border-y py-14"
-          style={{
-            backgroundColor: "var(--surface-accent)",
-            borderColor: "var(--border-color)",
-          }}
-        >
-          <div className="container mx-auto flex flex-col items-start justify-between gap-6 px-6 md:flex-row md:items-center">
-            <div>
-              <h2 className="text-3xl font-bold">
-                Ready to improve your sprint planning?
-              </h2>
-              <p
-                className="mt-2 leading-7"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                Start a focused, secure estimation session in minutes.
-              </p>
-            </div>
-            <Button type="button" size="lg" onClick={handleStartGame}>
-              <Plus className="h-5 w-5" aria-hidden="true" />
-              Start Your First Game
-            </Button>
           </div>
         </section>
       </main>
